@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nocturne-battle"
+version = "0.1.0"
+description = "Nocturne engine match and historical search comparison studio"
+requires-python = ">=3.12"
+license = "GPL-3.0-or-later"
+dependencies = [
+  "nocturne-chess @ git+https://github.com/understandingothers789-pixel/nocturne-chess.git@5f9c69582039f42b743f2d12a4a28c188339e55d",
+  "PySide6==6.8.3", "chess==1.11.2"
+]
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "pytest-qt>=4.4,<5", "pyinstaller>=6.11,<7"]
+[project.gui-scripts]
+nocturne-battle = "nocturne_battle.app:main"
+[tool.setuptools.packages.find]
+where = ["src"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
