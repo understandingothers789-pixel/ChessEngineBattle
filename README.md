@@ -5,7 +5,7 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
-No published builds are available yet. A Linux 0.1.0 build was smoke-tested in the development workspace; download links will be added here when artifacts are published. See the Windows build instructions below.
+- [Download Nocturne Battle 0.1.0 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42535154560/artifacts/13639565345) — successful GitHub Actions build. Sign in to GitHub to download; workflow artifacts expire. Extract the ZIP and run NocturneBattle.exe.
 
 ## Run from source (Windows PowerShell)
 
@@ -99,8 +99,7 @@ can produce different searches even with the same recorded configuration.
 Build on Windows to produce `dist\NocturneBattle\NocturneBattle.exe`. Keep the
 whole directory, including Qt libraries, assets and licenses. The manually
 runnable Windows GitHub Actions workflow runs tests and produces a build artifact.
-No Windows build has been executed or published in this Linux session; there is
-no completed Windows download to link yet. The mock UCI fixture is test-only and
+The Windows 0.1.0 artifact above was produced by GitHub Actions; it has not been independently run on a Windows desktop. The mock UCI fixture is test-only and
 is not included in the application bundle.
 
 See [Nocturne audit](docs/NOCTURNE_AUDIT.md),
