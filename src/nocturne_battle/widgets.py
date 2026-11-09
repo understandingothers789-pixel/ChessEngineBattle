@@ -241,6 +241,7 @@ class AnalysisPanel(QWidget):
         self.board.hide()
         layout.addWidget(self.board)
         pin = QCheckBox('Pin preview')
+        self.pin_control=pin
         pin.toggled.connect(self.pin)
         layout.addWidget(pin)
 

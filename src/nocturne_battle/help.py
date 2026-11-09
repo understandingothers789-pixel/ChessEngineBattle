@@ -19,7 +19,7 @@ def install_tooltips(root):
             choices=[widget.itemText(i) for i in range(min(widget.count(),8))]
             text='Choose an option'+(': '+ '; '.join(choices) if choices else '. Load an engine file to populate saved engine choices.')
         elif isinstance(widget,QSpinBox):
-            text=f'Choose a whole-number value from {widget.minimum():,} to {widget.maximum():,}. Current value: {widget.value():,}.'
+            text=f'Choose a whole-number value from {widget.minimum():,} to {widget.maximum():,}.'
         elif isinstance(widget,QLineEdit):
             label=None
             for parent in [root]+root.findChildren(QWidget):

@@ -49,7 +49,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Nocturne Battle 0.3.2 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Nocturne Battle 0.3.3 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -519,15 +519,13 @@ class Window(QMainWindow):
         self.game_selector.blockSignals(False)
         if self.follow_live:
             self.load_game(index)
-        self.games_table.games.update_state(state,self.tournament.active)
-        results = state['games']
-        wins = sum((g['result']=='1-0' and g['a_white']) or (g['result']=='0-1' and not g['a_white']) for g in results)
-        losses = sum((g['result']=='0-1' and g['a_white']) or (g['result']=='1-0' and not g['a_white']) for g in results)
-        draws = sum(g['result']=='1/2-1/2' for g in results)
-        n = wins+losses+draws
+        self.games_table.games.update_state(state,self.tournament.active,{state['index'],getattr(self,'_browser_index',state['index'])})
+        self._browser_index=state['index']
         from .statistics import summarize
-        self.stats.setPlainText(summarize(state))
-        self.status.setText(f"{'Running' if self.tournament.active else 'Paused / complete'} · game {index+1}/{len(results)}")
+        statistics_key=(state['id'],tuple(g['result'] for g in state['games']))
+        if getattr(self,'_statistics_key',None)!=statistics_key:
+            self.stats.setPlainText(summarize(state));self._statistics_key=statistics_key
+        self.status.setText(f"{'Running' if self.tournament.active else 'Paused / complete'} · game {index+1}/{len(state['games'])}")
 
     def live_info(self, info):
         game = self.tournament.game
@@ -549,14 +547,24 @@ class Window(QMainWindow):
     def load_game(self, index):
         state = self.tournament.state
         item = state['games'][index]
-        self.view_game = Game(item['fen'])
-        self.view_game.id = item.get('id', self.view_game.id)
-        for uci in item['moves']:
+        moves=item['moves']
+        existing=self.view_game
+        prefix=[move.uci() for move in existing.moves]
+        reusable=(item.get('id') == existing.id and existing.initial_fen == item['fen']
+                  and existing.cursor == len(prefix) and prefix == moves[:len(prefix)])
+        if not reusable:
+            self.view_game = Game(item['fen'])
+            self.view_game.id = item.get('id',self.view_game.id)
+            prefix=[]
+        for uci in moves[len(prefix):]:
             self.view_game.play(self.view_game.board.parse_uci(uci))
         self.show_game()
 
     def select_game(self, index):
         if self.tournament.state and index >= 0:
+            self.game_selector.blockSignals(True)
+            self.game_selector.setCurrentIndex(index)
+            self.game_selector.blockSignals(False)
             self.follow_live = False
             self.load_game(index)
 
@@ -606,6 +614,7 @@ class Window(QMainWindow):
                                     f"{'White' if game.board.turn == 1 else 'Black'} to move")
         self.moves.setHtml(' '.join(f'<a href="{i+1}" style="color:{"#72c9bd" if i+1 == game.cursor else "#aab6c3"}">{i//2+1 if i%2==0 else ""} {text}</a>' for i,text in enumerate(game.sans)))
         for panel in self.panels:
+            panel.pin_control.setChecked(False)
             panel.pinned = False
             panel.board.set_position(game.board.copy(), last)
         self.refresh_analysis()
@@ -628,7 +637,6 @@ class Window(QMainWindow):
             panel.load(self.db.records(self.view_game,profile) if profile else [], self.view_game.board.turn if self.perspective.currentIndex() == 0 else 1, self.db.runs(self.view_game,profile) if profile else [])
         self.syncing = False
         self.selection_changed(0)
-        self.update_history()
 
     def update_history(self):
         self.candidate_views.refresh(self.panels)

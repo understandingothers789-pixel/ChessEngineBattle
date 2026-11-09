@@ -1,6 +1,7 @@
 """Durable profiles, exact-position analysis and resumable paired schedules."""
 from dataclasses import dataclass, asdict, field
 from hashlib import sha256
+from functools import lru_cache
 import json
 import math
 from pathlib import Path
@@ -17,9 +18,24 @@ def digest(value):
     return sha256(json.dumps(value, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
 
+def _file_signature(path):
+    stat = Path(path).stat()
+    return (stat.st_dev,stat.st_ino,stat.st_size,stat.st_mtime_ns,stat.st_ctime_ns)
+
+
+@lru_cache(maxsize=32)
+def _hash_unchanged_file(path, signature):
+    digest = sha256()
+    with open(path,'rb') as stream:
+        while chunk := stream.read(1024*1024): digest.update(chunk)
+    if _file_signature(path) != signature:
+        raise ValueError('Engine or network file changed while it was being checked; retry validation')
+    return digest.hexdigest()
+
+
 def executable_hash(path):
-    with open(path, 'rb') as stream:
-        return sha256(stream.read()).hexdigest()
+    resolved = str(Path(path).resolve(strict=True))
+    return _hash_unchanged_file(resolved,_file_signature(resolved))
 
 
 def position_identity(game):

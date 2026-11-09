@@ -66,6 +66,8 @@ class ExperimentRunner(QObject):
 
     def observe(self):
         if not self.state or not self.tournament.state: return
+        if self.active and not any(c['id']==self.tournament.state['id'] for c in self.state['conditions']):
+            self.active=False;self.save();return
         for i,condition in enumerate(self.state['conditions']):
             if condition['id'] == self.tournament.state['id']:
                 self.state['conditions'][i] = deepcopy(self.tournament.state)

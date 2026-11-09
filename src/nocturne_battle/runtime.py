@@ -83,7 +83,9 @@ class Search(QObject):
         if self.context and connection.phase == "idle":
             requested = self.context["multipv"]
             if requested > 1 and int(connection.confirmed.get("MultiPV", 1)) != requested:
+                sid=self.context["id"]
                 self.cancel()
+                self.db.finish(sid,"failed",{"message":"Requested MultiPV is unsupported"})
                 self.failed.emit("Engine does not support the requested MultiPV count")
 
     def observe(self, generation, info):

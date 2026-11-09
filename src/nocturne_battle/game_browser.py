@@ -19,10 +19,14 @@ class GameModel(QAbstractTableModel):
         if role == Qt.ItemDataRole.DisplayRole: return self.rows[index.row()][index.column()]
         if role == Qt.ItemDataRole.UserRole: return index.row()
 
-    def update_state(self,state,active):
-        if self.tournament != state['id'] or len(self.rows) != len(state['games']):
+    def update_state(self,state,active,dirty_rows=None):
+        reset = self.tournament != state['id'] or len(self.rows) != len(state['games'])
+        if reset:
             self.beginResetModel(); self.rows = [['']*8 for _ in range(len(state['games']))]; self.tournament = state['id']; self.endResetModel()
-        for row,g in enumerate(state['games']):
+        indices = range(len(state['games'])) if reset or dirty_rows is None else sorted(set(dirty_rows))
+        for row in indices:
+            if not 0 <= row < len(state['games']):continue
+            g=state['games'][row]
             white = 0 if g['a_white'] else 1
             values = [row+1,g['pair']+1,state['profiles'][white]['name'],state['profiles'][1-white]['name'],g['result'],len(g['moves']),g.get('opening_name',''),
                       'Completed' if g['result'] != '*' else 'Running' if active and row == state['index'] else 'Paused / pending']
