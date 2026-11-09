@@ -17,3 +17,7 @@ PyInstaller's bootloader exception allows packaged application redistribution.
 
 No Stockfish, NNUE network, Maia model, or other engine executable is included.
 Test fixtures speak UCI deterministically and are not playing-strength engines.
+
+Bundled opening suites: official-stockfish/books, CC0 1.0 Universal.
+https://github.com/official-stockfish/books . Upstream names and counts are
+preserved; books/LICENSE.txt contains the license, books/README.txt provenance.

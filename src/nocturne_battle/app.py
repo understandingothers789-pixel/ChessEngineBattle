@@ -26,6 +26,7 @@ from nocturne.snapshots import node_label
 from .history import compare, select_checkpoint
 from .model import Database, Profile, Limit, executable_hash, openings, schedule
 from .runtime import Search, Tournament
+from .time_editor import MinutesSeconds
 from .game_browser import GameBrowser
 from .experiments import ExperimentRunner
 from .experiment_ui import ScalingPanel
@@ -49,7 +50,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Nocturne Battle 0.3.5 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Nocturne Battle 0.3.6 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -250,12 +251,12 @@ class Window(QMainWindow):
         self.clock_group=QGroupBox('Clock controls — base time + increment')
         clock_form=QFormLayout(self.clock_group)
         preset=QComboBox();preset.addItem('Apply a clock preset…',None)
-        for title,minutes,increment in [('1 min + 0 sec',1,0),('3 min + 2 sec',3,2),('5 min + 3 sec',5,3),('10 min + 5 sec',10,5)]:preset.addItem(title,(minutes,increment))
+        for title,minutes,increment in [('10 sec + 0.1 sec',10/60,0.1),('30 sec + 0.1 sec',0.5,0.1),('1 min + 0 sec',1,0),('3 min + 2 sec',3,2),('5 min + 3 sec',5,3),('10 min + 5 sec',10,5)]:preset.addItem(title,(minutes,increment))
         self.clock_bases=[];self.clock_increments=[]
         clock_form.addRow('Same preset for both',preset)
         for side in range(2):
-            base=QDoubleSpinBox();base.setRange(0.01,1440);base.setDecimals(2);base.setValue(3);base.setSuffix(' min')
-            inc=QDoubleSpinBox();inc.setRange(0,3600);inc.setDecimals(3);inc.setValue(2);inc.setSuffix(' sec')
+            base=MinutesSeconds()
+            inc=QDoubleSpinBox();inc.setRange(0,3600);inc.setDecimals(3);inc.setValue(0.1);inc.setSuffix(' sec')
             base.setToolTip('Starting time for this engine, in minutes. Each new game resets both clocks.')
             inc.setToolTip('Seconds added after each accepted move. A move received after time runs out does not earn increment.')
             self.clock_bases.append(base);self.clock_increments.append(inc)
@@ -265,8 +266,12 @@ class Window(QMainWindow):
             if data:
                 for base,inc in zip(self.clock_bases,self.clock_increments):base.setValue(data[0]);inc.setValue(data[1])
         preset.currentIndexChanged.connect(apply_clock_preset)
-        form.addRow(self.clock_group)
-        self.clock_group.hide()
+        self.clock_dialog=QDialog(self);self.clock_dialog.setWindowTitle('Clock controls — minutes, seconds and increment')
+        clock_layout=QVBoxLayout(self.clock_dialog);clock_layout.addWidget(self.clock_group)
+        done=QPushButton('Done');done.clicked.connect(self.clock_dialog.accept);clock_layout.addWidget(done)
+        self.clock_button=QPushButton('Clock controls…');self.clock_button.clicked.connect(self.clock_dialog.exec)
+        form.addRow(self.clock_button)
+        self.clock_button.hide()
         self.mode.currentTextChanged.connect(self.search_mode_changed)
 
         self.ratio_button=button('Apply B:A node ratio', self.apply_ratio, config)
@@ -277,6 +282,12 @@ class Window(QMainWindow):
         self.recent_books.addItems(db.get('recent_books',[]))
         self.recent_books.textActivated.connect(lambda text: self.book.setText(text) if text != 'Recent opening suites…' else None)
         form.addRow('Recent books', self.recent_books)
+        bundled=QComboBox();bundled.addItem('Choose an included opening suite…','')
+        for name in ('Drawkiller_balanced_big.epd','4mvs_+90_+99.epd','6mvs_+90_+99.epd'):
+            path=Path(__file__).parent/'books'/name
+            bundled.addItem(name+' ('+f'{path.stat().st_size/1024:.1f} KiB'+')',str(path))
+        bundled.currentIndexChanged.connect(lambda index:self.book.setText(bundled.itemData(index)) if bundled.itemData(index) else None)
+        form.addRow('Included opening suites',bundled)
         book_browse=QPushButton('Browse opening suite…');book_browse.clicked.connect(self.choose_book)
         form.addRow('',book_browse)
         use_book=QPushButton('Play every book opening twice');use_book.clicked.connect(self.use_full_opening_suite)
@@ -477,7 +488,7 @@ class Window(QMainWindow):
         self.pair_description.setText(f'{self.pairs.value()} opening pairs = {self.pairs.value()*2} games. Each selected opening gets two games with colors swapped. Extra pairs repeat the suite.')
 
     def search_mode_changed(self,mode):
-        self.clock_group.setVisible(mode == 'clock')
+        self.clock_button.setVisible(mode == 'clock')
         for field in self.budgets:
             field.setEnabled(mode != 'clock');field.setVisible(mode != 'clock')
             self.limit_form.labelForField(field).setVisible(mode != 'clock')
@@ -939,8 +950,8 @@ class Window(QMainWindow):
         self.silence_timeout.setValue(state.get('silence_timeout',120))
         self.splitter.setSizes(state['splitter'])
         self.mode.setCurrentText(state['mode'])
-        for control,value in zip(self.clock_bases,state.get('clock_bases',[3,3])):control.setValue(value)
-        for control,value in zip(self.clock_increments,state.get('clock_increments',[2,2])):control.setValue(value)
+        for control,value in zip(self.clock_bases,state.get('clock_bases',[10/60,10/60])):control.setValue(value)
+        for control,value in zip(self.clock_increments,state.get('clock_increments',[0.1,0.1])):control.setValue(value)
         for control, value in zip(self.budgets, state['budgets']):
             control.setText(value)
         for control, index in zip(self.engines, state['engines']):

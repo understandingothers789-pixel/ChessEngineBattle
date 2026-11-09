@@ -1,0 +1,21 @@
+"""Plain-language explanations for advertised Stockfish options."""
+HELP={
+'Threads':'CPU threads used for searching. Default 2 uses two CPU threads; it does not use the graphics card.',
+'Hash':'RAM reserved for the search cache, in MB. 1024 MB is 1 GiB per engine process. Larger caches remember more previously searched positions.',
+'Skill Level':'Maximum means full strength. Lower values intentionally choose weaker moves. This is separate from the Elo limiter.',
+'UCI_LimitStrength':'Turn on to intentionally weaken play to UCI_Elo. Leave off for full strength, with Skill Level at maximum.',
+'UCI_Elo':'Approximate target Elo when UCI_LimitStrength is on. It is ignored when the limiter is off and is not an engine rating measurement.',
+'MultiPV':'Number of candidate variations searched. Use 1 for strength matches; additional lines divide the search effort at the same budget.',
+'SyzygyPath':'Folder containing Syzygy tablebase files (.rtbw/.rtbz). Click this field or Browse to select a folder. Leave blank if you have no tablebases.',
+'SyzygyProbeDepth':'Minimum search depth before probing tablebases. Higher values probe less often; defaults usually work well.',
+'SyzygyProbeLimit':'Maximum number of pieces in tablebase probes. Your installed tablebases must support that number of pieces.',
+'Syzygy50MoveRule':'Apply the fifty-move rule when interpreting tablebase results. Leave on for normal chess matches.',
+'Move Overhead':'Milliseconds reserved for communication and scheduling delays when the engine allocates time. Larger values are more conservative on short clocks.',
+'Ponder':'Allow thinking during the opponent’s turn when the host supports pondering. This application does not schedule ponder searches.',
+'EvalFile':'Optional external NNUE evaluation network. Leave the advertised default unchanged to use an embedded/default network; choose a compatible file to override it.',
+'EvalFileSmall':'Optional smaller NNUE evaluation network. Leave the advertised default unless you have a compatible replacement file.',
+'NumaPolicy':'How engine threads are assigned across CPU memory domains. Auto/system defaults are normally suitable for a desktop processor.',
+'UCI_Chess960':'Enable Chess960 castling rules. The application sets this from the position; standard opening suites use normal chess.',
+'UCI_AnalyseMode':'Analysis behavior requested by the host. Match play and supplementary analysis are tracked separately.',
+'UCI_ShowWDL':'Include the engine’s estimated win/draw/loss probabilities in search output. These estimates are not measured match results.',
+'Debug Log File':'Optional path for engine protocol logs. Leave blank unless diagnosing an engine issue; logs can grow large.'}

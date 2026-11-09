@@ -48,7 +48,7 @@ def position_identity(game):
 class Profile:
     name: str
     path: str
-    options: dict = field(default_factory=lambda: {'Threads': 1, 'Hash': 64})
+    options: dict = field(default_factory=lambda: {'Threads': 2, 'Hash': 1024})
     arguments: list = field(default_factory=list)
     identity: str = ''
     engine_name: str = ''
@@ -108,7 +108,10 @@ def openings(path):
             for line in stream:
                 if line.strip() and not line.lstrip().startswith('#'):
                     board = chess.Board()
-                    board.set_epd(line.strip())
+                    fields=line.strip().split()
+                    if len(fields)==6 and fields[4].isdigit() and fields[5].isdigit():
+                        board.set_fen(line.strip())
+                    else:board.set_epd(line.strip())
                     result.append(board.fen(en_passant='fen'))
         else:
             raise ValueError('Select a PGN or EPD opening suite')

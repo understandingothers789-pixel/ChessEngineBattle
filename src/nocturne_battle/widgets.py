@@ -35,6 +35,14 @@ def button(text, callback, layout):
     return control
 
 
+class TablebaseFolderEdit(QLineEdit):
+    def mousePressEvent(self,event):
+        super().mousePressEvent(event)
+        if event.button()==Qt.MouseButton.LeftButton:
+            path=QFileDialog.getExistingDirectory(self,'Choose Syzygy tablebase folder',self.text())
+            if path:self.setText(path)
+
+
 class ProfileDialog(QDialog):
     def __init__(self, parent=None, existing=None, selected_path=None):
         super().__init__(parent)
@@ -51,7 +59,7 @@ class ProfileDialog(QDialog):
         self.name = QLineEdit(existing.name if existing else Path(selected_path).stem if selected_path else '')
         self.path = QLineEdit(existing.path if existing else selected_path or '')
         self.args = QLineEdit(json.dumps(existing.arguments if existing else []))
-        self.options = QPlainTextEdit(json.dumps(existing.options if existing else {'Threads': 1, 'Hash': 64}, indent=2))
+        self.options = QPlainTextEdit(json.dumps(existing.options if existing else {'Threads': 2, 'Hash': 1024}, indent=2))
         form.addRow('Profile name', self.name)
         form.addRow('Executable', self.path)
         button('Choose a different engine file…', self.browse, layout)
@@ -122,18 +130,30 @@ class ProfileDialog(QDialog):
         for name, option in data['options'].items():
             if option.kind == 'button':
                 continue
-            value = self.existing.options.get(name, option.default) if self.existing else option.default
+            defaults = {'threads': 2, 'hash': 1024, 'skill level': option.maximum, 'uci_limitstrength': False}
+            value = self.existing.options.get(name, option.default) if self.existing else defaults.get(name.lower(), option.default)
             if option.kind == 'spin':
                 control = QSpinBox(); control.setRange(option.minimum, min(option.maximum, 2147483647))
                 control.setValue(int(value))
+                if name.lower() == 'hash': control.setSuffix(' MB')
             elif option.kind == 'check':
                 control = QCheckBox(); control.setChecked(str(value).lower() == 'true')
             elif option.kind == 'combo':
                 control = QComboBox(); control.addItems(option.choices); control.setCurrentText(str(value))
             else:
-                control = QLineEdit('' if value == '<empty>' else str(value))
+                control = (TablebaseFolderEdit if name.lower()=='syzygypath' else QLineEdit)('' if value == '<empty>' else str(value))
+            tips = {'threads':'Number of CPU threads the engine uses while searching. More threads use more CPU.', 'hash':'Memory reserved for the engine’s search cache, in megabytes. 1024 MB is 1 GiB.', 'skill level':'Stockfish playing strength: the maximum value selects full strength. Lower values deliberately weaken play.', 'uci_limitstrength':'When enabled, limits Stockfish strength to the configured Elo. Leave off for full strength.', 'uci_elo':'Target playing strength when UCI_LimitStrength is enabled; ignored when it is off.', 'syzygypath':'Folder containing Syzygy endgame tablebase files. These let the engine use exact results for supported positions.', 'multipv':'Number of candidate lines to search. More lines can reduce playing strength at the same budget.'}
+            from .engine_help import HELP
+            control.setToolTip(HELP.get(name,tips.get(name.lower(), f'{name}: a setting advertised by this engine. Its documentation is needed to explain this custom option accurately.')))
             self.option_widgets[name] = control
             self.visual_form.addRow(name, control)
+            if name.lower() == 'syzygypath':
+                browse = QPushButton('Browse tablebase folder…')
+                def choose_syzygy(checked=False, c=control):
+                    path = QFileDialog.getExistingDirectory(self, 'Choose Syzygy tablebase folder', c.text())
+                    if path: c.setText(path)
+                browse.clicked.connect(choose_syzygy)
+                self.visual_form.addRow('', browse)
             if name.lower() in ('evalfile', 'evalfilesmall', 'weightsfile'):
                 browse = QPushButton('Choose network…')
                 def choose(checked=False, c=control):

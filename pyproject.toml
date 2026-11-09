@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nocturne-battle"
-version = "0.3.5"
+version = "0.3.6"
 description = "Nocturne engine match and historical search comparison studio"
 requires-python = ">=3.12"
 license = "GPL-3.0-or-later"
@@ -20,3 +20,6 @@ nocturne-battle = "nocturne_battle.app:main"
 where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.setuptools.package-data]
+nocturne_battle = ["books/*"]
