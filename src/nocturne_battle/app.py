@@ -49,7 +49,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Nocturne Battle 0.3.0 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Nocturne Battle 0.3.1 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -70,6 +70,11 @@ class Window(QMainWindow):
         title = QLabel('NOCTURNE  /  ENGINE MATCH & ANALYSIS')
         title.setStyleSheet('font-size: 22px; padding: 12px;')
         outer.addWidget(title)
+        quick = QHBoxLayout()
+        self.load_a_button = button('Open engine file for A…', lambda:self.load_engine(0), quick)
+        self.load_b_button = button('Open engine file for B…', lambda:self.load_engine(1), quick)
+        button('Match setup',lambda:self.workspace.setCurrentIndex(0),quick)
+        outer.addLayout(quick)
         self.workspace = QComboBox()
         self.workspace.addItems(['Match Setup', 'Live Match', 'Analysis Comparison', 'Results & History', 'Node Scaling Experiment'])
         outer.addWidget(self.workspace)
@@ -214,19 +219,27 @@ class Window(QMainWindow):
         self.engines = [QComboBox(), QComboBox()]
         form.addRow('Engine A', self.engines[0])
         form.addRow('Engine B', self.engines[1])
-        button('Add / duplicate engine profile…', self.add_profile, config)
-        button('Edit selected A profile…', self.edit_profile, config)
-        button('Remove selected A profile', self.remove_profile, config)
-        self.welcome = QLabel('Welcome. Choose your local UCI executable using Add profile, then Validate. Add a second profile for self-play.')
+        management=QGroupBox('Manage saved engines (optional)')
+        management.setCheckable(True);management.setChecked(False)
+        management_layout=QVBoxLayout(management);management_body=QWidget()
+        management_buttons=QVBoxLayout(management_body)
+        button('Duplicate selected engine settings…',self.add_profile,management_buttons)
+        button('Edit selected A profile…',self.edit_profile,management_buttons)
+        button('Remove selected A profile',self.remove_profile,management_buttons)
+        button('Unload Engine A',lambda:self.unload_engine(0),management_buttons)
+        button('Unload Engine B',lambda:self.unload_engine(1),management_buttons)
+        management_layout.addWidget(management_body);management_body.hide()
+        management.toggled.connect(management_body.setVisible);config.addWidget(management)
+        self.welcome = QLabel('Start here: click Open engine file for A above and choose your engine’s .exe file. Test it, then save. You can use the same engine for both sides. No engines are included.')
         self.welcome.setWordWrap(True); self.welcome.setVisible(not self.profiles)
-        config.addWidget(self.welcome)
+        config.insertWidget(1,self.welcome)
 
         self.mode = QComboBox()
         self.mode.addItems(['nodes', 'depth', 'movetime'])
         self.budgets = [QLineEdit('100000000'), QLineEdit('1000000000')]
         form.addRow('Search mode', self.mode)
-        form.addRow('A limit', self.budgets[0])
-        form.addRow('B limit', self.budgets[1])
+        form.addRow('Engine A search budget', self.budgets[0])
+        form.addRow('Engine B search budget', self.budgets[1])
         button('Apply B:A node ratio', self.apply_ratio, config)
         button('Exchange A / B budgets', self.swap_budgets, config)
         self.book = QLineEdit()
@@ -235,11 +248,13 @@ class Window(QMainWindow):
         self.recent_books.addItems(db.get('recent_books',[]))
         self.recent_books.textActivated.connect(lambda text: self.book.setText(text) if text != 'Recent opening suites…' else None)
         form.addRow('Recent books', self.recent_books)
-        button('Choose / validate PGN or EPD…', self.choose_book, config)
+        book_browse=QPushButton('Browse opening suite…');book_browse.clicked.connect(self.choose_book)
+        form.addRow('',book_browse)
         self.pairs = QSpinBox()
         self.pairs.setRange(1, 100000)
         self.pairs.setValue(100)
-        form.addRow('Opening pairs', self.pairs)
+        self.pairs.setToolTip('Each pair plays the same opening twice with reversed colors. 100 pairs means 200 games.')
+        form.addRow('Opening pairs (2 games each)', self.pairs)
         self.play_pv = QSpinBox()
         self.play_pv.setRange(1, 5)
         form.addRow('Playing MultiPV', self.play_pv)
@@ -313,13 +328,44 @@ class Window(QMainWindow):
         QMessageBox.warning(self, 'Nocturne Battle', text)
 
     def populate_profiles(self):
+        if hasattr(self,'welcome'):self.welcome.setVisible(not self.profiles)
         for control in self.engines:
             index = control.currentIndex()
             control.clear()
             control.addItems([p.name for p in self.profiles])
             control.setCurrentIndex(max(0, index))
 
+    def load_engine(self, side):
+        path, _ = QFileDialog.getOpenFileName(self, 'Choose chess engine executable',
+            self.db.get('engine_directory',''), 'Windows engine (*.exe);;All files (*)' if sys.platform == 'win32' else 'All files (*)')
+        if not path:return
+        dialog = ProfileDialog(self, selected_path=path)
+        if dialog.exec() != QDialog.DialogCode.Accepted:return
+        self.profiles.append(dialog.profile)
+        self.db.put('profiles',[asdict(p) for p in self.profiles])
+        self.db.put('engine_directory',str(Path(path).parent))
+        self.populate_profiles()
+        self.engines[side].setCurrentIndex(len(self.profiles)-1)
+        if len(self.profiles)==1:self.engines[1-side].setCurrentIndex(0)
+        self.welcome.hide()
+        self.status.setText('Engine ready: '+dialog.profile.name+'. Both sides can use the same engine with different search budgets.')
+        self.workspace.setCurrentIndex(0)
+        self.save_settings()
+
+    def unload_engine(self, side):
+        if self.tournament.active:
+            self.error('Pause the match before unloading an engine.');return
+        self.cancel_analysis()
+        self.analysis.engine.connection.close()
+        self.tournament.search.engine.connection.close()
+        self.engines[side].setCurrentIndex(-1)
+        self.status.setText('Engine '+'AB'[side]+' unloaded. Its saved settings and game history are retained. Choose a saved engine or open another file.')
+        self.refresh_analysis()
+        self.save_settings()
+
     def add_profile(self):
+        if not self.profiles or self.engines[0].currentIndex()<0:
+            self.status.setText('Select a saved Engine A first, or click Open engine file above.');return
         source = self.profiles[self.engines[0].currentIndex()] if self.profiles else None
         dialog = ProfileDialog(self, source)
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -329,7 +375,7 @@ class Window(QMainWindow):
             self.engines[1].setCurrentIndex(len(self.profiles)-1)
 
     def edit_profile(self):
-        if not self.profiles: return
+        if not self.profiles or self.engines[0].currentIndex()<0: return
         index = self.engines[0].currentIndex()
         dialog = ProfileDialog(self, self.profiles[index])
         if dialog.exec() == QDialog.DialogCode.Accepted:
@@ -339,7 +385,7 @@ class Window(QMainWindow):
             self.populate_profiles()
 
     def remove_profile(self):
-        if not self.profiles: return
+        if not self.profiles or self.engines[0].currentIndex()<0: return
         if QMessageBox.question(self, 'Remove profile', 'Remove this profile? Historical searches are retained.') != QMessageBox.StandardButton.Yes: return
         self.profiles.pop(self.engines[0].currentIndex())
         self.db.put('profiles', [asdict(p) for p in self.profiles]); self.populate_profiles()
@@ -384,8 +430,8 @@ class Window(QMainWindow):
         self.panels[side].pv_rank.setValue(rank)
 
     def selected_profiles(self):
-        if not self.profiles:
-            raise ValueError('Add and validate UCI engine profiles first')
+        if not self.profiles or any(c.currentIndex()<0 for c in self.engines):
+            raise ValueError('Choose an engine for both A and B. Use Open engine file above or select a saved engine.')
         return [self.profiles[c.currentIndex()] for c in self.engines]
 
     def limits(self):
@@ -573,9 +619,11 @@ class Window(QMainWindow):
         if not self.profiles:
             return
         self.syncing = True
-        for side,(panel, profile) in enumerate(zip(self.panels, self.selected_profiles())):
+        for side,panel in enumerate(self.panels):
+            index=self.engines[side].currentIndex()
+            profile=self.profiles[index] if index>=0 else None
             panel.title.setText('ENGINE '+'AB'[side])
-            panel.load(self.db.records(self.view_game, profile), self.view_game.board.turn if self.perspective.currentIndex() == 0 else 1, self.db.runs(self.view_game, profile))
+            panel.load(self.db.records(self.view_game,profile) if profile else [], self.view_game.board.turn if self.perspective.currentIndex() == 0 else 1, self.db.runs(self.view_game,profile) if profile else [])
         self.syncing = False
         self.selection_changed(0)
         self.update_history()

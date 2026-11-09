@@ -36,9 +36,9 @@ def button(text, callback, layout):
 
 
 class ProfileDialog(QDialog):
-    def __init__(self, parent=None, existing=None):
+    def __init__(self, parent=None, existing=None, selected_path=None):
         super().__init__(parent)
-        self.setWindowTitle('Engine profile · validate a local UCI executable')
+        self.setWindowTitle('Add a chess engine' if not existing else 'Engine settings')
         self.resize(650, 520)
         self.profile = None
         self.discovered = None
@@ -48,14 +48,16 @@ class ProfileDialog(QDialog):
         layout = QVBoxLayout(self)
         form = QFormLayout()
         layout.addLayout(form)
-        self.name = QLineEdit(existing.name if existing else '')
-        self.path = QLineEdit(existing.path if existing else '')
+        self.name = QLineEdit(existing.name if existing else Path(selected_path).stem if selected_path else '')
+        self.path = QLineEdit(existing.path if existing else selected_path or '')
         self.args = QLineEdit(json.dumps(existing.arguments if existing else []))
         self.options = QPlainTextEdit(json.dumps(existing.options if existing else {'Threads': 1, 'Hash': 64}, indent=2))
         form.addRow('Profile name', self.name)
         form.addRow('Executable', self.path)
-        button('Browse executable…', self.browse, layout)
-        advanced = QGroupBox('Advanced raw configuration')
+        button('Choose a different engine file…', self.browse, layout)
+        help_text = QLabel('1. Choose your engine file.  2. Click Test engine.  3. Save to use it in matches. Testing runs the executable you selected.')
+        help_text.setWordWrap(True);layout.addWidget(help_text)
+        advanced = QGroupBox('Expert settings (optional)')
         advanced.setCheckable(True); advanced.setChecked(False)
         advanced_layout = QVBoxLayout(advanced)
         self.args.hide(); self.options.hide()
@@ -67,18 +69,24 @@ class ProfileDialog(QDialog):
         self.visual_form = QFormLayout()
         option_container = QWidget(); option_container.setLayout(self.visual_form)
         option_scroll = QScrollArea(); option_scroll.setWidgetResizable(True)
-        option_scroll.setWidget(option_container); layout.addWidget(option_scroll)
+        option_scroll.setWidget(option_container)
+        options_group = QGroupBox('Engine options (optional — defaults work for most users)')
+        options_group.setCheckable(True);options_group.setChecked(False)
+        options_layout=QVBoxLayout(options_group);options_layout.addWidget(option_scroll)
+        option_scroll.hide();options_group.toggled.connect(option_scroll.setVisible)
+        layout.addWidget(options_group)
         self.existing = existing
 
-        self.status = QLabel('Validate to discover the engine and its supported options.')
+        self.status = QLabel('Click Test engine to check that this file supports chess-engine communication.')
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
-        button('Validate engine / discover options', self.validate, layout)
+        self.test_button = button('Test engine', self.validate, layout)
         self.option_list = QPlainTextEdit()
         self.option_list.setReadOnly(True)
         advanced_layout.addWidget(self.option_list)
         self.option_list.hide(); advanced.toggled.connect(self.option_list.setVisible)
         controls = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+        controls.button(QDialogButtonBox.StandardButton.Save).setText('Save engine')
         controls.accepted.connect(self.save)
         controls.rejected.connect(self.reject)
         layout.addWidget(controls)
@@ -131,7 +139,7 @@ class ProfileDialog(QDialog):
                     if path: c.setText(path)
                 browse.clicked.connect(choose)
                 self.visual_form.addRow('', browse)
-        self.status.setText('Validated: ' + data['name'])
+        self.status.setText('Ready: ' + data['name'] + '. Click Save engine to finish. Engine options can be left at their defaults.')
         self.option_list.setPlainText('\n'.join(f'{o.name}: {o.kind}, default={o.default}, '
             f'range={o.minimum}–{o.maximum}, choices={o.choices}' for o in data['options'].values()))
 

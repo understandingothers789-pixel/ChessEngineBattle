@@ -23,5 +23,5 @@ jobs:
           QT_QPA_PLATFORM: offscreen
       - uses: actions/upload-artifact@v4
         with:
-          name: NocturneBattle-0.3.0-Windows
+          name: NocturneBattle-0.3.1-Windows
           path: dist/NocturneBattle/

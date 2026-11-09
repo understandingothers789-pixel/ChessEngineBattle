@@ -11,6 +11,25 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 - [Download Nocturne Battle 0.1.0 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42535154560/artifacts/13639565345) — successful GitHub Actions build. Sign in to GitHub to download; workflow artifacts expire. Extract the ZIP and run NocturneBattle.exe.
 
+## Version 0.3.1 — easier engine loading
+
+Use **Open engine file for A…** or **Open engine file for B…** at the top of
+any workspace. A file browser opens immediately. Select your local engine `.exe`,
+click **Test engine**, then **Save engine**. The first engine is selected for both
+sides so you can start a self-play match; choose another saved engine for either
+side when ready. Engine options are optional and collapsed by default.
+
+To unload a selection, pause the match and open **Manage saved engines** in Match
+Setup, then **Unload Engine A/B**. Saved settings and game history are retained.
+Opening suites have their own Browse button next to the match fields.
+
+This rebuild includes standard Windows version metadata but is **unsigned**.
+Rebuilding does not guarantee Smart App Control or SmartScreen will trust it;
+version metadata is not a digital signature. No change in Windows security
+approval is claimed. The reliable distribution solution requires trusted signing
+and Windows validation. Do not confuse CI startup checks with Windows security
+approval on a downloaded file.
+
 ## Version 0.3.0 development branch
 
 New: exact played-move search attribution, per-rank freshness, integer-safe node
@@ -57,8 +76,7 @@ no Git worktree is required.
 
 ## Connect your engines and play
 
-1. Choose **Add / clone engine profile**, browse to your own UCI executable,
-   validate it, inspect discovered options, and save. Use the discovered option controls to set Threads, Hash and other supported settings. Expert arguments and raw configuration are available in the advanced editor.
+1. Click **Open engine file for A…**, select your own UCI executable, click **Test engine**, then **Save engine**. Use the discovered option controls to set Threads, Hash and other supported settings. Expert arguments and raw configuration are available in the advanced editor.
    Validate only executables you trust: validation launches the selected file.
 2. Add another profile of the same executable or another engine. Select A and B.
 3. Choose **nodes**, **depth**, or **movetime**. Movetime values are seconds;
