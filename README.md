@@ -5,6 +5,8 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+- [Download Nocturne Battle 0.3.3 for Windows — fresh rebuild](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42554565572/artifacts/13646691949) — source `e556bee3aee89460b31672c0becbfb42e5cc95fb`, application code unchanged. Windows tests, packaging and executable startup/render smoke passed. Unsigned: this rebuild does not establish Smart App Control or antivirus approval. Sign in to GitHub; Actions artifacts expire.
+
 - [Download Nocturne Battle 0.3.3 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42554102650/artifacts/13646317623) — faster repeated file checks and live updates; fixes game selection, preview pins and experiment isolation. Source `dcaa93d094f5039699e35b19de9f73b625c828ee`. 73 tests passed, 1 optional real-engine test skipped; Windows packaging and startup/render smoke passed. Unsigned; Smart App Control approval is unverified. Sign in to GitHub; Actions artifacts expire. See [performance and bug report](docs/0.3.3_REPORT.md).
 
 - [Download Nocturne Battle 0.3.2 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42553458016/artifacts/13645959659) — tooltips for controls, engine options, tables and board views. Source `a9f5ba575b56f30f244a3ec54e7d36e79a12e111`. 69 tests passed, 1 optional real-engine test skipped; Windows packaging and executable startup/render smoke passed. Unsigned; Smart App Control approval remains unverified. Sign in to GitHub; Actions artifacts expire.
