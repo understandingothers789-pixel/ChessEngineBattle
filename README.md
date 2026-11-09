@@ -188,3 +188,20 @@ is not included in the application bundle.
 See [Nocturne audit](docs/NOCTURNE_AUDIT.md),
 [engineering report](docs/ENGINEERING_REPORT.md), and
 [third-party notices](THIRD_PARTY_NOTICES.md). This application is GPL-3.0-or-later.
+
+## 0.3.6 local update (Windows build pending publication)
+
+Clock controls now open a menu/dialog with separate minutes and seconds; new
+settings use 10 seconds plus a 0.1-second increment. New engine profiles use
+2 threads and 1024 MB (1 GiB) hash, full Skill Level, and Elo limiting off.
+SyzygyPath opens a folder browser. Existing saved profile/clock settings remain.
+
+Included Stockfish-repository suites (CC0, upstream balance descriptions):
+
+| Suite | Positions | Uncompressed size |
+|---|---:|---:|
+| Drawkiller balanced | 15,962 | 1,041,902 bytes |
+| 4-move +90/+99 unbalanced | 635 | 42,679 bytes |
+| 6-move +90/+99 unbalanced | 2,933 | 200,263 bytes |
+
+These are available under Included opening suites. No engine binaries are bundled.
