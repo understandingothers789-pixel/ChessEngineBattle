@@ -1,5 +1,5 @@
 """Context help for controls, including dynamically created engine options."""
-from PySide6.QtWidgets import QWidget,QPushButton,QComboBox,QLineEdit,QSpinBox,QCheckBox,QSlider,QTableView,QTextEdit,QLabel,QGroupBox,QTabWidget
+from PySide6.QtWidgets import QWidget,QPushButton,QComboBox,QLineEdit,QSpinBox,QCheckBox,QSlider,QTableView,QTextEdit,QLabel,QGroupBox,QTabWidget,QFormLayout
 
 
 def install_tooltips(root):
@@ -21,7 +21,16 @@ def install_tooltips(root):
         elif isinstance(widget,QSpinBox):
             text=f'Choose a whole-number value from {widget.minimum():,} to {widget.maximum():,}. Current value: {widget.value():,}.'
         elif isinstance(widget,QLineEdit):
-            text=widget.placeholderText() or 'Enter or edit this value. Node budgets accept whole numbers and K, M or B suffixes; file fields require a local path.'
+            label=None
+            for parent in [root]+root.findChildren(QWidget):
+                layout=QWidget.layout(parent)
+                if isinstance(layout,QFormLayout):
+                    candidate=layout.labelForField(widget)
+                    if candidate and isinstance(candidate,QLabel):label=candidate.text();break
+            text=widget.placeholderText() or ('Enter '+label+'.' if label else 'Enter or edit this value.')
+            if label and any(word in label.lower() for word in ('budget','checkpoint','limit')):
+                text+=' Node values accept integers and K, M or B suffixes; time-per-move values are seconds.'
+
         elif isinstance(widget,QCheckBox):text=widget.text()+': turn this setting on or off.'
         elif isinstance(widget,QSlider):text='Move between recorded checkpoints. Missing thresholds are not invented; requested and actual nodes may differ.'
         elif isinstance(widget,QTableView):text='Select a row or cell to inspect its recorded data. Column headings identify each value; missing analysis is shown as unavailable.'
@@ -29,4 +38,6 @@ def install_tooltips(root):
         elif isinstance(widget,QGroupBox):text=widget.title()+'. Expand to see optional controls.'
         elif isinstance(widget,QLabel):text=widget.text() if len(widget.text())<400 else 'Position and search details for the current selection.'
         elif isinstance(widget,QTabWidget):text='Switch workspaces without interrupting an active match.'
+        elif type(widget).__name__ == 'BoardWidget':text='Chessboard: hover a principal-variation move to preview a position. Use Flip to change orientation and Return to Live to follow the running match.'
+        elif type(widget).__name__ in ('Evolution','ScalingGraph'):text='Recorded results plotted by node budget. Missing or unbounded values are not plotted; inspect the accompanying table for details.'
         if text: widget.setToolTip(text)
