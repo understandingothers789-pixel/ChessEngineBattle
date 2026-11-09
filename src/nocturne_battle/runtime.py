@@ -174,7 +174,7 @@ class Tournament(QObject):
         self.next()
 
     def next(self):
-        if not self.active:
+        if not self.active or self.search.context:
             return
         if self.state['index'] >= len(self.state['games']):
             self.active = False

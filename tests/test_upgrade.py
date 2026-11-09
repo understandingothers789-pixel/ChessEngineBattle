@@ -126,6 +126,7 @@ def test_live_info_does_not_mutate_historical_candidates(qtbot,db,profile):
     window.tournament.create([profile]*2,[Limit()]*2,schedule(openings(None),1))
     historical = json.dumps(window.panels[0].record, sort_keys=True)
     window.tournament.active = True
+    window.follow_live = False
     line = dict(window.panels[0].panel.lines[1]); line['score_value'] = 999
     window.live_info(line)
     assert window.live_panels[0].lines[1]['score_value'] == 999

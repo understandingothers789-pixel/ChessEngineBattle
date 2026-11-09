@@ -174,10 +174,13 @@ class Window(QMainWindow):
         live = QWidget()
         live_layout = QVBoxLayout(live)
         self.live_panels = []
+        self.live_labels = []
+        self.live_positions = [None,None]
         for side in range(2):
             panel = CandidatePanel(MoveText(auto_fit=True))
             panel.set_maia(enabled=False)
-            live_layout.addWidget(QLabel('Live engine '+ 'AB'[side]))
+            label = QLabel('Live engine '+ 'AB'[side]); label.setWordWrap(True)
+            self.live_labels.append(label); live_layout.addWidget(label)
             live_layout.addWidget(panel)
             self.live_panels.append(panel)
         self.tabs.addTab(live, 'Live Match')
@@ -466,11 +469,15 @@ class Window(QMainWindow):
 
     def live_info(self, info):
         game = self.tournament.game
-        if not self.follow_live or not game or not self.tournament.active:
+        if not game or not self.tournament.active:
             return
         item = self.tournament.state['games'][self.tournament.state['index']]
         side = 0 if ((game.board.turn == 1) == item['a_white']) else 1
         panel = self.panels[side]
+        position = game.board.fen()
+        if self.live_positions[side] != position:
+            self.live_panels[side].clear(); self.live_positions[side] = position
+        self.live_labels[side].setText(f"Live engine {'AB'[side]} · ply {game.cursor} · {position}")
         if True:
             self.live_panels[side].set_multipv(self.tournament.state['multipv'])
             self.live_panels[side].update_line(info, game.board.turn)
