@@ -5,6 +5,8 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+- [Download Nocturne Battle 0.3.2 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42553458016/artifacts/13645959659) — tooltips for controls, engine options, tables and board views. Source `a9f5ba575b56f30f244a3ec54e7d36e79a12e111`. 69 tests passed, 1 optional real-engine test skipped; Windows packaging and executable startup/render smoke passed. Unsigned; Smart App Control approval remains unverified. Sign in to GitHub; Actions artifacts expire.
+
 - [Download Nocturne Battle 0.3.1 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42550437046/artifacts/13645695022) — rebuilt version 3 with direct A/B engine file pickers and simpler setup; source `ecc14156bf09362cd81dc68f7c61aa9e5b0c05a1`. Windows tests and packaged startup/render smoke passed (67 passing, 1 optional real-engine test skipped). Unsigned: Smart App Control may still block it. Sign in to GitHub; Actions artifacts expire.
 
 - [Download Nocturne Battle 0.3.0 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42544005839/artifacts/13642687367) — source `4e077cdc6e1ac9670821990ebec08e3889941f11`; Windows tests, PyInstaller and packaged offscreen startup/render smoke passed. Real-engine and interactive Windows desktop testing remain unverified. Sign in to GitHub; Actions artifacts expire.
