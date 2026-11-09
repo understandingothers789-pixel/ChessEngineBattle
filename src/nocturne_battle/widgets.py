@@ -90,6 +90,8 @@ class ProfileDialog(QDialog):
         controls.accepted.connect(self.save)
         controls.rejected.connect(self.reject)
         layout.addWidget(controls)
+        from .help import install_tooltips
+        install_tooltips(self)
 
     def browse(self):
         path, _ = QFileDialog.getOpenFileName(self, 'Select UCI executable')
@@ -139,6 +141,8 @@ class ProfileDialog(QDialog):
                     if path: c.setText(path)
                 browse.clicked.connect(choose)
                 self.visual_form.addRow('', browse)
+        from .help import install_tooltips
+        install_tooltips(self)
         self.status.setText('Ready: ' + data['name'] + '. Click Save engine to finish. Engine options can be left at their defaults.')
         self.option_list.setPlainText('\n'.join(f'{o.name}: {o.kind}, default={o.default}, '
             f'range={o.minimum}–{o.maximum}, choices={o.choices}' for o in data['options'].values()))
@@ -237,6 +241,7 @@ class AnalysisPanel(QWidget):
         self.board.hide()
         layout.addWidget(self.board)
         pin = QCheckBox('Pin preview')
+        self.pin_control=pin
         pin.toggled.connect(self.pin)
         layout.addWidget(pin)
 

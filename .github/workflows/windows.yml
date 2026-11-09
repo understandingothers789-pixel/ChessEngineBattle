@@ -2,7 +2,7 @@ name: Windows desktop validation
 on:
   workflow_dispatch:
   push:
-    branches: [main, development/0.2.0, development/0.3.0, compatibility/0.3.1-rebuild]
+    branches: [main, development/0.2.0, development/0.3.0, compatibility/0.3.1-rebuild, development/0.3.4]
   pull_request:
 jobs:
   desktop:
@@ -30,5 +30,5 @@ jobs:
           Get-FileHash dist/NocturneBattle/NocturneBattle.exe -Algorithm SHA256 | Format-List | Out-File -Append dist/NocturneBattle/BUILD-INFO.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: NocturneBattle-0.3.1-Compatibility-Windows
+          name: NocturneBattle-0.3.4-Windows
           path: dist/NocturneBattle/
