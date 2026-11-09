@@ -89,7 +89,7 @@ def test_valid_limits(limit):
     limit.validate()
 
 
-@pytest.mark.parametrize('limit',[Limit('nodes',0),Limit('depth',129),Limit('clock',2)])
+@pytest.mark.parametrize('limit',[Limit('nodes',0),Limit('depth',129),Limit('unknown',2)])
 def test_invalid_limits(limit):
     with pytest.raises(ValueError):
         limit.validate()

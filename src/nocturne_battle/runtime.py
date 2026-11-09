@@ -1,6 +1,9 @@
 """Qt asynchronous orchestration on Nocturne's existing UCI controller."""
 from dataclasses import asdict
 from uuid import uuid4
+import time
+from .clocks import MatchClock
+from nocturne.core.board import Outcome
 
 from PySide6.QtCore import QObject, QTimer, Signal
 from nocturne.core.game import Game
@@ -12,6 +15,7 @@ from .model import Profile, Limit, executable_hash, position_identity
 
 
 class Search(QObject):
+    started = Signal(object)
     updated = Signal(object)
     completed = Signal(object)
     failed = Signal(str)
@@ -21,6 +25,12 @@ class Search(QObject):
         self.db = db
         self.engine = EngineController(self)
         self.engine.set_history_capture(True)
+        # Adapt only the public request's go command. All transport, readiness,
+        # cancellation and PV validation continue through Nocturne unchanged.
+        self._transport_request = self.engine.connection.request
+        self.engine.connection.request = self._request
+        self.engine.connection.status.connect(self._search_status)
+        self.clock_command = None
         self.engine.connection.observation.connect(self.observe)
         self.engine.message.connect(self.message)
         self.engine.connection.configured.connect(self.configured)
@@ -34,9 +44,11 @@ class Search(QObject):
         self.render_timer.setInterval(80); self.render_timer.timeout.connect(self.flush_render)
 
     def start(self, game, profile, limit, multipv=1, provenance='live-playing', start=1_000_000,
-              maximum=None, tournament=None, kind="continuous", silence_timeout_ms=120000):
+              maximum=None, tournament=None, kind="continuous", silence_timeout_ms=120000, clock_command=None):
         self.cancel()
         limit.validate()
+        if limit.mode == 'clock' and not clock_command:raise ValueError('Clock searches require both game clocks')
+        self.clock_command=clock_command
         if kind not in ('continuous', 'independent'): raise ValueError('Unknown search kind')
         if kind == 'independent' and limit.mode != 'nodes': raise ValueError('Independent checkpoints require node limits')
         self.silence_timeout_ms = silence_timeout_ms
@@ -52,6 +64,7 @@ class Search(QObject):
         self.required = min(multipv, len(list(game.board.legal_moves())))
         self.context = self.db.begin(game, profile, limit, multipv, provenance, tournament)
         self.context['kind'] = kind
+        if clock_command:self.context['clock_go']=clock_command
         self.context['silence_timeout_ms'] = silence_timeout_ms
         self.context['checkpoint_start'] = start
         self.context['checkpoint_maximum'] = maximum
@@ -70,6 +83,14 @@ class Search(QObject):
             self.db.finish(self.context['id'], 'failed')
             self.context = None
             raise
+
+    def _request(self,generation,position,go,options,study_id='',**kwargs):
+        return self._transport_request(generation,position,self.clock_command or go,options,study_id,**kwargs)
+
+    def _search_status(self,message):
+        connection=self.engine.connection
+        if self.context and connection.phase == 'search' and connection.running and connection.running[0] == self.generation:
+            self.started.emit(dict(self.context, started_ns=time.monotonic_ns()))
 
     def timed_out(self):
         if self.context:
@@ -115,6 +136,7 @@ class Search(QObject):
         if generation != self.generation or not self.context:
             return
         if kind in ('result', 'error'):
+            data=dict(data,received_ns=time.monotonic_ns())
             self.watchdog.stop()
             self.flush_render()
             context, self.context = self.context, None
@@ -152,6 +174,7 @@ class Search(QObject):
 
 class Tournament(QObject):
     changed = Signal()
+    clock_changed = Signal()
     failed = Signal(str)
 
     def __init__(self, db, parent=None):
@@ -160,6 +183,10 @@ class Tournament(QObject):
         self.state = db.get('tournament')
         self.search = Search(db, self)
         self.search.completed.connect(self.result)
+        self.search.started.connect(self.start_clock)
+        self.clock = None
+        self.clock_timer=QTimer(self);self.clock_timer.setInterval(50)
+        self.clock_timer.timeout.connect(self.tick_clock)
         self.search.failed.connect(self.error)
         self.active = False
         self.game = None
@@ -169,16 +196,24 @@ class Tournament(QObject):
     def restore_game(self):
         index = self.state['index']
         if index >= len(self.state['games']):
+            self.clock=None;self.game=None
             return
         item = self.state['games'][index]
         self.game = Game(item['fen'])
         self.game.id = item.setdefault('id', str(uuid4()))
         for uci in item['moves']:
             self.game.play(self.game.board.parse_uci(uci))
+        self.clock=None
+        limits=[Limit(**limit) for limit in self.state['limits']]
+        if all(limit.mode == 'clock' for limit in limits):
+            self.clock=MatchClock.restore(item['clock']) if item.get('clock') else MatchClock.create(limits,item['a_white'])
+        if item['result'] != '*':self.game.declared=Outcome(item['result'],item.get('termination','Stored result'))
 
     def create(self, profiles, limits, games, multipv=1, checkpoint=1_000_000, maximum=None, seed=0):
         if self.active:
             raise ValueError('Pause the current match first')
+        for limit in limits:limit.validate()
+        if any(limit.mode == 'clock' for limit in limits) and not all(limit.mode == 'clock' for limit in limits):raise ValueError('Both engines must use clock mode together')
         self.state = dict(id=str(uuid4()), profiles=[asdict(p) for p in profiles],
                           limits=[asdict(l) for l in limits], games=games, index=0,
                           multipv=multipv, checkpoint=checkpoint, maximum=maximum, seed=seed)
@@ -188,6 +223,8 @@ class Tournament(QObject):
     def save(self):
         if not self.state:
             return
+        if self.clock and self.state['index'] < len(self.state['games']):
+            self.state['games'][self.state['index']]['clock']=self.clock.payload()
         self.db.save_tournament(self.state)
         self.changed.emit()
 
@@ -198,6 +235,33 @@ class Tournament(QObject):
             return
         self.active = True
         self.next()
+
+    def start_clock(self,context):
+        if not self.active or not self.clock:return
+        if context['game'] != self.game.id:return
+        self.clock.start(self.game.board.turn,now=context['started_ns'])
+        self.clock_timer.start()
+        self.save()
+        self.clock_changed.emit()
+
+    def forfeit(self,color):
+        self.clock_timer.stop()
+        sid=self.search.context['id'] if self.search.context else None
+        self.search.cancel()
+        if sid:self.db.finish(sid,'time-forfeit',{'message':'Clock expired'})
+        draw=self.game.board.native.has_insufficient_material(color != 1)
+        result='1/2-1/2' if draw else ('0-1' if color == 1 else '1-0')
+        self.game.declared=Outcome(result,'Time forfeit' if not draw else 'Time expired; opponent cannot mate')
+        item=self.state['games'][self.state['index']]
+        item['result']=result;item['termination']=self.game.declared.reason
+        self.save()
+        self.clock_changed.emit()
+        QTimer.singleShot(0,self.next)
+
+    def tick_clock(self):
+        if self.clock and self.clock.active is not None and self.clock.left(self.clock.active)==0:
+            color=self.clock.active;self.clock.stop();self.forfeit(color)
+        self.clock_changed.emit()
 
     def next(self):
         if not self.active or self.search.context:
@@ -217,13 +281,16 @@ class Tournament(QObject):
             self.save()
             QTimer.singleShot(0, self.next)
             return
+        if self.clock and self.clock.left(self.game.board.turn)==0:
+            self.forfeit(self.game.board.turn);return
         a_turn = (self.game.board.turn == 1) == item['a_white']
         side = 0 if a_turn else 1
         try:
             self.search.start(self.game, Profile(**self.state['profiles'][side]),
                               Limit(**self.state['limits'][side]), self.state['multipv'],
                               start=self.state['checkpoint'], maximum=self.state['maximum'],
-                              tournament=self.state['id'],silence_timeout_ms=self.state.get('silence_timeout_ms',120000))
+                              tournament=self.state['id'],silence_timeout_ms=0 if self.clock else self.state.get('silence_timeout_ms',120000),
+                              clock_command=self.clock.uci() if self.clock else None)
         except (ValueError, OSError) as exc:
             self.error(str(exc))
         self.changed.emit()
@@ -237,10 +304,17 @@ class Tournament(QObject):
                 raise ValueError('Move has no verified originating search')
             if context['game'] != self.game.id or context['position'] != position_identity(self.game):
                 raise ValueError('Search result belongs to a different game or position')
+            timing={}
+            if self.clock:
+                before=self.clock.payload()
+                flag,elapsed=self.clock.stop(now=data['received_ns'],add_increment=True)
+                self.clock_timer.stop()
+                if flag is not None:self.forfeit(flag);return
+                timing=dict(clock_before=before,clock_after=self.clock.payload(),elapsed_ns=elapsed)
             ply = self.game.cursor + 1
             link = dict(game=self.game.id, ply=ply, position=context['position'],
                         profile=context['profile'], search_run_id=context['id'], limit=context['limit'],
-                        bestmove=data['move'], played_move=data['move'], status=context['status'])
+                        bestmove=data['move'], played_move=data['move'], status=context['status'],**timing)
             self.game.play(self.game.board.parse_uci(data['move']))
             item = self.state['games'][self.state['index']]
             item['moves'].append(data['move'])
@@ -252,6 +326,10 @@ class Tournament(QObject):
 
     def pause(self):
         self.active = False
+        self.clock_timer.stop()
+        if self.clock:
+            flag,_=self.clock.stop()
+            if flag is not None:self.forfeit(flag)
         self.search.cancel()
         self.save()
 

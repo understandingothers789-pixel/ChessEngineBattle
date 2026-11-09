@@ -23,6 +23,24 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 - [Download Nocturne Battle 0.1.0 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42535154560/artifacts/13639565345) — successful GitHub Actions build. Sign in to GitHub to download; workflow artifacts expire. Extract the ZIP and run NocturneBattle.exe.
 
+## Version 0.3.5 — opening rematches and increment clocks
+
+**Play every book opening twice** sets one color-reversed pair per book entry.
+The pair counter also displays the total game count. Custom pair counts remain
+available and repeat the suite when necessary.
+
+For timed games choose **clock** in Search mode, then set each engine's starting
+minutes and increment seconds. Presets include **3 min + 2 sec** and **5 min +
+3 sec**. Both engines get their own remaining clock; every accepted move earns
+its increment. Clocks reset for the next game and swap correctly with colors.
+Pause freezes remaining time; a late move loses on time unless the opponent lacks
+mating material. After an unclean exit, recovery charges elapsed wall time,
+including downtime. Use clean Pause/Close when stopping a timed match.
+
+The top **Review & Start Match** button shows the configuration before starting.
+Supplementary analysis still uses separate node/depth/fixed-time budgets.
+See [clock and pairing details](docs/0.3.5_REPORT.md).
+
 ## Version 0.3.1 — easier engine loading
 
 Use **Open engine file for A…** or **Open engine file for B…** at the top of

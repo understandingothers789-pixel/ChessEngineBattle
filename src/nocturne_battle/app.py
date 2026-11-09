@@ -9,7 +9,7 @@ import sys
 from PySide6.QtCore import Qt, QStandardPaths, Signal, QTimer
 from PySide6.QtGui import QColor, QPainter, QPen, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QFormLayout, QLabel, QPushButton, QComboBox, QLineEdit, QSpinBox, QCheckBox,
+    QFormLayout, QLabel, QPushButton, QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox, QCheckBox,
     QSplitter, QScrollArea, QFileDialog, QMessageBox, QDialog, QDialogButtonBox,
     QGroupBox, QTabWidget, QTableWidget, QTableWidgetItem, QPlainTextEdit, QTextBrowser, QListWidget,QListWidgetItem)
 from nocturne.core.game import Game
@@ -49,12 +49,13 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Nocturne Battle 0.3.4 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Nocturne Battle 0.3.5 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
         self.tournament.changed.connect(self.match_changed)
         self.tournament.failed.connect(self.error)
+        self.tournament.clock_changed.connect(self.update_clocks)
         self.tournament.search.updated.connect(self.live_info)
         self.analysis = Search(db, self)
         self.analysis.completed.connect(self.analysis_complete)
@@ -85,6 +86,10 @@ class Window(QMainWindow):
         board_layout = QVBoxLayout(board_area)
         self.position_label = QLabel('Game position')
         board_layout.addWidget(self.position_label)
+        self.clock_label=QLabel('')
+        self.clock_label.setToolTip('Live game clocks. Preparation is excluded; each accepted move earns its increment. Pausing freezes the remaining time.')
+        self.clock_label.setStyleSheet('font-size: 19px; padding: 6px;')
+        board_layout.addWidget(self.clock_label)
         board_row = QHBoxLayout()
         self.board = BoardWidget()
         self.board.interactive = False
@@ -216,6 +221,7 @@ class Window(QMainWindow):
         config.addWidget(QLabel('MATCH SETUP'))
         form = QFormLayout()
         config.addLayout(form)
+        self.limit_form=form
         self.engines = [QComboBox(), QComboBox()]
         form.addRow('Engine A', self.engines[0])
         form.addRow('Engine B', self.engines[1])
@@ -235,13 +241,36 @@ class Window(QMainWindow):
         config.insertWidget(1,self.welcome)
 
         self.mode = QComboBox()
-        self.mode.addItems(['nodes', 'depth', 'movetime'])
+        self.mode.addItems(['nodes', 'depth', 'movetime', 'clock'])
+        self.mode.setItemData(3,'Base time plus an increment added after each accepted move.',Qt.ItemDataRole.ToolTipRole)
         self.budgets = [QLineEdit('100000000'), QLineEdit('1000000000')]
         form.addRow('Search mode', self.mode)
         form.addRow('Engine A search budget', self.budgets[0])
         form.addRow('Engine B search budget', self.budgets[1])
-        button('Apply B:A node ratio', self.apply_ratio, config)
-        button('Exchange A / B budgets', self.swap_budgets, config)
+        self.clock_group=QGroupBox('Clock controls — base time + increment')
+        clock_form=QFormLayout(self.clock_group)
+        preset=QComboBox();preset.addItem('Apply a clock preset…',None)
+        for title,minutes,increment in [('1 min + 0 sec',1,0),('3 min + 2 sec',3,2),('5 min + 3 sec',5,3),('10 min + 5 sec',10,5)]:preset.addItem(title,(minutes,increment))
+        self.clock_bases=[];self.clock_increments=[]
+        clock_form.addRow('Same preset for both',preset)
+        for side in range(2):
+            base=QDoubleSpinBox();base.setRange(0.01,1440);base.setDecimals(2);base.setValue(3);base.setSuffix(' min')
+            inc=QDoubleSpinBox();inc.setRange(0,3600);inc.setDecimals(3);inc.setValue(2);inc.setSuffix(' sec')
+            base.setToolTip('Starting time for this engine, in minutes. Each new game resets both clocks.')
+            inc.setToolTip('Seconds added after each accepted move. A move received after time runs out does not earn increment.')
+            self.clock_bases.append(base);self.clock_increments.append(inc)
+            clock_form.addRow('Engine '+'AB'[side]+' base',base);clock_form.addRow('Engine '+'AB'[side]+' increment',inc)
+        def apply_clock_preset(index):
+            data=preset.itemData(index)
+            if data:
+                for base,inc in zip(self.clock_bases,self.clock_increments):base.setValue(data[0]);inc.setValue(data[1])
+        preset.currentIndexChanged.connect(apply_clock_preset)
+        form.addRow(self.clock_group)
+        self.clock_group.hide()
+        self.mode.currentTextChanged.connect(self.search_mode_changed)
+
+        self.ratio_button=button('Apply B:A node ratio', self.apply_ratio, config)
+        self.swap_budget_button=button('Exchange A / B budgets', self.swap_budgets, config)
         self.book = QLineEdit()
         form.addRow('Opening suite', self.book)
         self.recent_books = QComboBox(); self.recent_books.addItem('Recent opening suites…')
@@ -250,11 +279,19 @@ class Window(QMainWindow):
         form.addRow('Recent books', self.recent_books)
         book_browse=QPushButton('Browse opening suite…');book_browse.clicked.connect(self.choose_book)
         form.addRow('',book_browse)
+        use_book=QPushButton('Play every book opening twice');use_book.clicked.connect(self.use_full_opening_suite)
+        use_book.setToolTip('Set the pair count to the number of opening entries in this book: one game per color for every entry. You can change the pair count afterward.')
+        form.addRow('',use_book)
         self.pairs = QSpinBox()
         self.pairs.setRange(1, 100000)
         self.pairs.setValue(100)
-        self.pairs.setToolTip('Each pair plays the same opening twice with reversed colors. 100 pairs means 200 games.')
+        self.pairs.setToolTip('Each pair plays the same opening twice with reversed colors. 100 pairs means 200 games. The suite cycles if the number of pairs exceeds the number of book entries.')
         form.addRow('Opening pairs (2 games each)', self.pairs)
+        self.pair_description=QLabel();self.pair_description.setWordWrap(True)
+        self.pair_description.setToolTip('Each opening is played exactly twice with colors reversed. Total games = opening pairs × 2.')
+        self.pairs.valueChanged.connect(self.update_pair_description)
+        form.addRow(self.pair_description)
+        self.update_pair_description()
         self.play_pv = QSpinBox()
         self.play_pv.setRange(1, 5)
         form.addRow('Playing MultiPV', self.play_pv)
@@ -262,7 +299,7 @@ class Window(QMainWindow):
         form.addRow('First checkpoint', self.checkpoint)
         self.summary = QLabel(); self.summary.setWordWrap(True)
         config.addWidget(self.summary)
-        button('Review & Start Match', self.start_match, config)
+        button('Review & Start Match', self.start_match, quick)
         button('Pause match', self.tournament.pause, config)
         button('Resume persisted match', self.resume, config)
         advanced = QGroupBox('Advanced settings')
@@ -436,8 +473,29 @@ class Window(QMainWindow):
             raise ValueError('Choose an engine for both A and B. Use Open engine file above or select a saved engine.')
         return [self.profiles[c.currentIndex()] for c in self.engines]
 
+    def update_pair_description(self):
+        self.pair_description.setText(f'{self.pairs.value()} opening pairs = {self.pairs.value()*2} games. Each selected opening gets two games with colors swapped. Extra pairs repeat the suite.')
+
+    def search_mode_changed(self,mode):
+        self.clock_group.setVisible(mode == 'clock')
+        for field in self.budgets:
+            field.setEnabled(mode != 'clock');field.setVisible(mode != 'clock')
+            self.limit_form.labelForField(field).setVisible(mode != 'clock')
+        self.ratio_button.setVisible(mode=='nodes')
+        self.swap_budget_button.setVisible(mode!='clock')
+
+    def update_clocks(self):
+        clock=self.tournament.clock
+        if not clock:self.clock_label.clear();return
+        def label(color):
+            milliseconds=clock.left(color)//1_000_000
+            return f'{milliseconds//60000:02d}:{milliseconds//1000%60:02d}.{milliseconds%1000//100}'
+        self.clock_label.setText(f'Live clocks · White {label(1)}   |   Black {label(-1)}')
+
     def limits(self):
         mode = self.mode.currentText()
+        if mode == 'clock':
+            return [Limit('clock',round(base.value()*60000),round(inc.value()*1000)) for base,inc in zip(self.clock_bases,self.clock_increments)]
         result = [Limit(mode, parse_budget(c.text()) if mode != 'movetime' else float(c.text())) for c in self.budgets]
         for limit in result:
             limit.validate()
@@ -462,6 +520,13 @@ class Window(QMainWindow):
         except Exception as exc:
             self.error(str(exc))
 
+    def use_full_opening_suite(self):
+        try:
+            count=len(openings(self.book.text()))
+            self.pairs.setValue(count)
+            self.status.setText(f'{count} opening entries selected: {count*2} games with colors reversed.')
+        except (ValueError,OSError) as exc:self.error(str(exc))
+
     def choose_book(self):
         path, _ = QFileDialog.getOpenFileName(self, 'Choose opening suite', filter='Opening suites (*.pgn *.epd)')
         if path:
@@ -482,7 +547,7 @@ class Window(QMainWindow):
             if self.tournament.state:
                 old = self.tournament.state
                 self.db.put('tournament:'+old['id'], old)
-            description = '\n'.join(f"{p.name}: {l.value:,} {l.mode}, Threads={p.options.get('Threads','default')}, Hash={p.options.get('Hash','default')}" for p,l in zip(profiles,limits))
+            description = '\n'.join(f"{p.name}: "+(f"{l.value/60000:g} min + {l.increment_ms/1000:g} sec" if l.mode=='clock' else f"{l.value:,} {l.mode}")+f", Threads={p.options.get('Threads','default')}, Hash={p.options.get('Hash','default')}" for p,l in zip(profiles,limits))
             description += f"\n{self.pairs.value()*2} games · {self.book.text() or 'start position'} · Playing PV{self.play_pv.value()} · checkpoints from {start:,}"
             self.summary.setText(description)
             if QMessageBox.question(self, 'Match configuration', description+'\nStart this match?') != QMessageBox.StandardButton.Yes: return
@@ -525,6 +590,7 @@ class Window(QMainWindow):
         statistics_key=(state['id'],tuple(g['result'] for g in state['games']))
         if getattr(self,'_statistics_key',None)!=statistics_key:
             self.stats.setPlainText(summarize(state));self._statistics_key=statistics_key
+        self.update_clocks()
         self.status.setText(f"{'Running' if self.tournament.active else 'Paused / complete'} · game {index+1}/{len(state['games'])}")
 
     def live_info(self, info):
@@ -758,6 +824,7 @@ class Window(QMainWindow):
             if self.analysis.context:
                 raise ValueError('Wait for the current queue or cancel it')
             profiles, limits = self.selected_profiles(), self.limits()
+            if any(limit.mode == 'clock' for limit in limits):raise ValueError('Game clocks are for match play. Choose nodes, depth or fixed time for supplementary analysis.')
             start, maximum = self.bounds()
             game = Game.from_dict(self.view_game.to_dict())
             state = self.tournament.state
@@ -841,6 +908,12 @@ class Window(QMainWindow):
                         game.headers.update(White=state['profiles'][white]['name'], Black=state['profiles'][1-white]['name'],
                                             Result=item['result'], Event='Nocturne Battle', Seed=str(state['seed']),
                                             BattleConfig=json.dumps({k:v for k,v in state.items() if k != 'games'}))
+                        if item.get('termination'):game.headers['Termination']=item['termination']
+                        if all(limit['mode']=='clock' for limit in state['limits']):
+                            controls=[f"{limit['value']/1000:g}+{limit.get('increment_ms',0)/1000:g}" for limit in state['limits']]
+                            game.headers['TimeControl']=controls[0] if controls[0]==controls[1] else '?'
+                            game.headers['WhiteTimeControl']=controls[white]
+                            game.headers['BlackTimeControl']=controls[1-white]
                         game._main_result = item['result']
                         texts.append(game.pgn())
                 Path(path).write_text('\n\n'.join(texts), encoding='utf-8')
@@ -851,7 +924,7 @@ class Window(QMainWindow):
             self.error(str(exc))
 
     def save_settings(self):
-        self.db.put('workspace', dict(silence_timeout=self.silence_timeout.value(), geometry=bytes(self.saveGeometry().toHex()).decode(), workspace=self.workspace.currentIndex(), splitter=self.splitter.sizes(), mode=self.mode.currentText(),
+        self.db.put('workspace', dict(clock_bases=[c.value() for c in self.clock_bases],clock_increments=[c.value() for c in self.clock_increments],silence_timeout=self.silence_timeout.value(), geometry=bytes(self.saveGeometry().toHex()).decode(), workspace=self.workspace.currentIndex(), splitter=self.splitter.sizes(), mode=self.mode.currentText(),
             budgets=[x.text() for x in self.budgets], engines=[x.currentIndex() for x in self.engines],
             book=self.book.text(), pairs=self.pairs.value(), play_pv=self.play_pv.value(),
             checkpoint=self.checkpoint.text(), maximum=self.maximum.text(), seed=self.seed.value(),
@@ -866,6 +939,8 @@ class Window(QMainWindow):
         self.silence_timeout.setValue(state.get('silence_timeout',120))
         self.splitter.setSizes(state['splitter'])
         self.mode.setCurrentText(state['mode'])
+        for control,value in zip(self.clock_bases,state.get('clock_bases',[3,3])):control.setValue(value)
+        for control,value in zip(self.clock_increments,state.get('clock_increments',[2,2])):control.setValue(value)
         for control, value in zip(self.budgets, state['budgets']):
             control.setText(value)
         for control, index in zip(self.engines, state['engines']):

@@ -73,9 +73,13 @@ class Profile:
 class Limit:
     mode: str = 'nodes'
     value: int | float = 1_000_000
+    increment_ms: int = 0
 
     def validate(self):
-        if self.mode in ('nodes', 'depth'):
+        if self.mode == 'clock':
+            if type(self.value) is not int or not 1 <= self.value <= 2**31-1 or type(self.increment_ms) is not int or not 0 <= self.increment_ms <= 2**31-1:
+                raise ValueError('Clock base must be positive integer milliseconds; increment must be nonnegative milliseconds, both ≤2^31−1')
+        elif self.mode in ('nodes', 'depth'):
             if type(self.value) is not int or not 1 <= self.value <= (2**63-1 if self.mode == 'nodes' else 128):
                 raise ValueError('Nodes require integers from 1 to 2^63−1; depth from 1 to 128')
         elif self.mode != 'movetime' or not math.isfinite(self.value) or self.value <= 0:
