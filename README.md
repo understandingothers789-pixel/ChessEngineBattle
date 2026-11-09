@@ -7,6 +7,18 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 - [Download Nocturne Battle 0.1.0 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42535154560/artifacts/13639565345) — successful GitHub Actions build. Sign in to GitHub to download; workflow artifacts expire. Extract the ZIP and run NocturneBattle.exe.
 
+## Version 0.2.0 development branch
+
+Four workspace modes keep setup, live viewing, comparison and the match library
+accessible while retaining the board. The engine editor now uses discovered
+numeric, boolean, choice and network-path controls; raw JSON is optional.
+Moves are clickable and games sortable/filterable. Search selectors isolate one
+run at a time, preserve final bestmoves, and label independent checkpoint jobs
+separately. Live candidate panels remain independent of historical selections.
+PGN opening move paths survive scheduling and recovery. The library opens stored
+tournaments, and results include a paired-score uncertainty estimate when the
+sample supports it. See [0.2.0 report](docs/0.2.0_REPORT.md) for limits and validation.
+
 ## Run from source (Windows PowerShell)
 
 ```powershell
@@ -24,8 +36,7 @@ no Git worktree is required.
 ## Connect your engines and play
 
 1. Choose **Add / clone engine profile**, browse to your own UCI executable,
-   validate it, inspect discovered options, and save. Use JSON options such as
-   `{"Threads": 1, "Hash": 64}`. Optional command arguments are a JSON array.
+   validate it, inspect discovered options, and save. Use the discovered option controls to set Threads, Hash and other supported settings. Expert arguments and raw configuration are available in the advanced editor.
    Validate only executables you trust: validation launches the selected file.
 2. Add another profile of the same executable or another engine. Select A and B.
 3. Choose **nodes**, **depth**, or **movetime**. Movetime values are seconds;

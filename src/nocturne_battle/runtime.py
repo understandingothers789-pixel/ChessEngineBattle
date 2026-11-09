@@ -26,9 +26,12 @@ class Search(QObject):
         self.engine.connection.configured.connect(self.configured)
         self.context = None
         self.generation = None
+        self.render_pending = {}
+        self.render_timer = QTimer(self); self.render_timer.setSingleShot(True)
+        self.render_timer.setInterval(80); self.render_timer.timeout.connect(self.flush_render)
 
     def start(self, game, profile, limit, multipv=1, provenance='live-playing', start=1_000_000,
-              maximum=None, tournament=None):
+              maximum=None, tournament=None, kind="continuous"):
         self.cancel()
         limit.validate()
         if not 1 <= multipv <= 5:
@@ -41,6 +44,12 @@ class Search(QObject):
         self.collector = Checkpoints(start, maximum)
         self.required = min(multipv, len(list(game.board.legal_moves())))
         self.context = self.db.begin(game, profile, limit, multipv, provenance, tournament)
+        self.context['kind'] = kind
+        self.context['checkpoint_start'] = start
+        self.context['checkpoint_maximum'] = maximum
+        with self.db.db:
+            import json
+            self.db.db.execute('UPDATE searches SET payload=? WHERE id=?', (json.dumps(self.context), self.context['id']))
         limits = AnalysisLimits(depth=int(limit.value) if limit.mode == 'depth' else 128,
                                 seconds=float(limit.value) if limit.mode == 'movetime' else 1,
                                 nodes=int(limit.value) if limit.mode == 'nodes' else None)
@@ -68,29 +77,42 @@ class Search(QObject):
         if not validated:
             return
         snapshot = self.collector.observe(validated, self.required)
-        if snapshot:
+        if snapshot and self.context['kind'] == 'continuous':
             try:
                 self.db.capture(self.context, snapshot)
             except ValueError as exc:
                 self.cancel()
                 self.failed.emit(str(exc))
                 return
-        self.updated.emit(validated)
+        self.render_pending[validated['multipv']] = validated
+        if not self.render_timer.isActive(): self.render_timer.start()
+
+    def flush_render(self):
+        self.render_timer.stop()
+        pending, self.render_pending = self.render_pending, {}
+        for _, info in sorted(pending.items()): self.updated.emit(info)
 
     def message(self, generation, kind, data):
         if generation != self.generation or not self.context:
             return
         if kind in ('result', 'error'):
+            self.flush_render()
             context, self.context = self.context, None
             complete = all(rank in self.collector.lines for rank in range(1, self.required+1))
             status = ('completed' if complete else 'completed-incomplete') if kind == 'result' else 'failed'
-            self.db.finish(context['id'], status)
+            if kind == 'result' and context['kind'] == 'independent':
+                lines = dict(self.collector.lines)
+                actual = max((x.get('nodes', 0) for x in lines.values()), default=0)
+                self.db.capture(context, dict(requested=context['limit']['value'], actual=actual,
+                    lines=lines, complete=complete, final_bestmove=data.get('move')))
+            self.db.finish(context['id'], status, data)
             if kind == 'result':
                 self.completed.emit(data)
             else:
                 self.failed.emit(data['message'])
 
     def cancel(self):
+        self.render_timer.stop(); self.render_pending.clear()
         if self.context:
             self.db.finish(self.context['id'], 'interrupted')
             self.context = None
@@ -137,12 +159,16 @@ class Tournament(QObject):
         self.save()
 
     def save(self):
+        if not self.state:
+            return
         self.db.put('tournament', self.state)
         self.db.put('tournament:'+self.state['id'], self.state)
         self.changed.emit()
 
     def resume(self):
         if not self.state or self.state['index'] >= len(self.state['games']):
+            return
+        if self.active:
             return
         self.active = True
         self.next()
@@ -155,6 +181,9 @@ class Tournament(QObject):
             self.save()
             return
         item = self.state['games'][self.state['index']]
+        if self.game.cursor >= self.state.get('max_plies', 1000) and not self.game.outcome:
+            self.game.agree_draw()
+            item['termination'] = 'Maximum game length'
         if self.game.outcome:
             item['result'] = self.game.outcome.result
             self.state['index'] += 1

@@ -4,6 +4,7 @@ Preserve its highest-crossed-only rule. Snapshots are observations, not exact
 independent node-limited results. GPL-3.0-or-later; Nocturne Chess contributors.
 """
 from copy import deepcopy
+import math
 
 
 class Checkpoints:
@@ -34,7 +35,7 @@ class Checkpoints:
 def select_checkpoint(records, target):
     if not records:
         return None, 'unavailable'
-    record = min(records, key=lambda r: abs(r['requested'] - target))
+    record = min(records, key=lambda r: abs(math.log(r['requested'] / target)))
     return record, 'exact' if record['requested'] == target else 'approximate'
 
 
@@ -57,3 +58,22 @@ def compare(a, b, rank_a=1, rank_b=1):
                 overlap=[(m, left.index(m)+1, right.index(m)+1) for m in left if m in right],
                 only_a=[m for m in left if m not in right], only_b=[m for m in right if m not in left],
                 shared_prefix=shared, divergence=shared+1 if apv[shared:] or bpv[shared:] else None)
+
+
+def milestones(records):
+    """Describe first recorded changes within one explicitly selected search."""
+    events, seen, previous = [], set(), None
+    for record in sorted(records, key=lambda r: r['requested']):
+        candidates = [x['pv'][0] for x in record['lines'].values() if x.get('pv')]
+        for move in candidates:
+            if move not in seen:
+                events.append((record['requested'], f'{move}: first observed'))
+                seen.add(move)
+        if candidates and previous and candidates[0] != previous[0]:
+            events.append((record['requested'], f'{candidates[0]}: first observed as preferred after {previous[0]}'))
+        if previous:
+            for move in previous:
+                if move not in candidates:
+                    events.append((record['requested'], f'{move}: no longer in recorded candidates'))
+        previous = candidates
+    return events

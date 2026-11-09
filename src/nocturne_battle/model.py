@@ -67,6 +67,13 @@ class Limit:
             raise ValueError('Depth must be at most 128')
 
 
+class Opening(str):
+    def __new__(cls, fen, initial=None, moves=None, name=''):
+        obj = super().__new__(cls, fen)
+        obj.initial = initial or fen; obj.moves = moves or []; obj.name = name
+        return obj
+
+
 def openings(path):
     if not path:
         return [chess.STARTING_FEN]
@@ -77,7 +84,7 @@ def openings(path):
                 if game.errors:
                     raise ValueError(f'Invalid PGN: {game.errors[0]}')
                 board = game.end().board()
-                result.append(board.fen(en_passant='fen'))
+                result.append(Opening(board.fen(en_passant='fen'), game.board().fen(en_passant='fen'), [m.uci() for m in game.mainline_moves()], game.headers.get('Opening', game.headers.get('Event',''))))
         elif Path(path).suffix.lower() == '.epd':
             for line in stream:
                 if line.strip() and not line.lstrip().startswith('#'):
@@ -99,8 +106,8 @@ def schedule(fens, pairs, seed=0, randomized=False):
     choices = list(fens)
     if randomized:
         random.Random(seed).shuffle(choices)
-    return [dict(fen=choices[i % len(choices)], pair=i, a_white=a_white,
-                 moves=[], result='*') for i in range(pairs) for a_white in (True, False)]
+    return [dict(fen=getattr(choices[i % len(choices)], 'initial', choices[i % len(choices)]), pair=i, a_white=a_white,
+                 moves=list(getattr(choices[i % len(choices)], 'moves', [])), opening_plies=len(getattr(choices[i % len(choices)], 'moves', [])), opening_name=getattr(choices[i % len(choices)], 'name', ''), result='*') for i in range(pairs) for a_white in (True, False)]
 
 
 class Database:
@@ -148,8 +155,12 @@ class Database:
             self.db.execute('INSERT OR IGNORE INTO snapshots VALUES (?,?,?)',
                             (context['id'], str(record['requested']), json.dumps(record)))
 
-    def finish(self, sid, status):
+    def finish(self, sid, status, result=None):
         with self.db:
+            if result is not None:
+                row = self.db.execute('SELECT payload FROM searches WHERE id=?', (sid,)).fetchone()
+                payload = json.loads(row[0]); payload['final_result'] = result
+                self.db.execute('UPDATE searches SET payload=? WHERE id=?', (json.dumps(payload), sid))
             self.db.execute('UPDATE searches SET status=? WHERE id=?', (status, sid))
 
     def recover(self):
@@ -163,6 +174,15 @@ class Database:
         records = [json.loads(payload) | {'status': status} for payload, status in rows]
         return [r for r in records if multipv is None or r['multipv'] == multipv]
 
+    def runs(self, game, profile):
+        return [json.loads(p) | {'status': status} for p, status in self.db.execute(
+            'SELECT payload,status FROM searches WHERE position=? AND profile=? ORDER BY rowid DESC',
+            (position_identity(game), profile.fingerprint()))]
+
+    def archives(self):
+        return [json.loads(p) for (p,) in self.db.execute(
+            "SELECT payload FROM settings WHERE key LIKE 'tournament:%' ORDER BY rowid DESC")]
+
     def export(self):
         return dict(settings={k: json.loads(v) for k, v in self.db.execute('SELECT * FROM settings')},
                     searches=[json.loads(p) | {'status': s} for s, p in self.db.execute('SELECT status,payload FROM searches')],
@@ -170,3 +190,13 @@ class Database:
 
     def close(self):
         self.db.close()
+
+
+def parse_budget(text):
+    from decimal import Decimal
+    text = text.strip().upper().replace(',', '')
+    multiplier = {'K':1000, 'M':1000000, 'B':1000000000}.get(text[-1:] ,1)
+    value = Decimal(text[:-1] if multiplier != 1 else text)*multiplier
+    if not value.is_finite() or value < 1 or value != int(value):
+        raise ValueError('Enter a positive integer, e.g. 100M or 1B')
+    return int(value)
