@@ -147,6 +147,16 @@ class ProfileDialog(QDialog):
                        control.currentText() if isinstance(control, QComboBox) else control.text())
                 for name, control in self.option_widgets.items()}
 
+            # Stockfish advertises embedded NNUE filenames that need not exist on
+            # disk. Only explicitly overridden paths are external cache inputs.
+            if not self.raw_enabled.isChecked():
+                for name in list(options):
+                    if name.lower() in ('evalfile', 'evalfilesmall', 'weightsfile'):
+                        default = self.discovered['options'][name].default
+                        default = '' if default == '<empty>' else default
+                        overridden = self.existing and name in self.existing.options
+                        if not overridden and options[name] == default:
+                            del options[name]
             if not isinstance(options, dict):
                 raise ValueError('Options must be a JSON object')
             for name, value in options.items():

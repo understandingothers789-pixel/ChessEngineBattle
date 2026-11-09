@@ -161,3 +161,17 @@ def test_paired_statistics_uncertainty():
     text = summarize({'games':games})
     assert '95% paired-score' in text
     assert 'Complete opening pairs: 20' in text
+
+
+def test_embedded_nnue_default_is_not_mistaken_for_external_file(qtbot,profile):
+    from nocturne.engine.uci_types import UciOption
+    dialog = ProfileDialog(existing=profile); qtbot.addWidget(dialog)
+    dialog.validation = (dialog.path.text(), dialog.args.text())
+    dialog.discover(dict(name='Embedded network engine',options={
+        'Threads':UciOption('Threads','spin','1',1,16),
+        'Hash':UciOption('Hash','spin','64',1,1024),
+        'EvalFile':UciOption('EvalFile','string','embedded-nonexistent.nnue')}))
+    dialog.save()
+    assert dialog.profile is not None
+    assert 'EvalFile' not in dialog.profile.options
+    assert dialog.profile.networks == {}
