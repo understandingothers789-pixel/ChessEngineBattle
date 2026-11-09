@@ -49,7 +49,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Nocturne Battle 0.3.1 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Nocturne Battle 0.3.2 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -322,6 +322,8 @@ class Window(QMainWindow):
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.activated.connect(callback)
         self.match_changed()
+        from .help import install_tooltips
+        install_tooltips(self)
 
     def error(self, text):
         self.status.setText(text)
