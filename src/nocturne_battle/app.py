@@ -495,6 +495,7 @@ class Window(QMainWindow):
         if True:
             self.live_panels[side].set_multipv(self.tournament.state['multipv'])
             self.live_panels[side].update_line(info, game.board.turn)
+        if self.follow_live:self.evalbar.set_score(info.get('score',0)*game.board.turn)
         self.status.setText(f"Playing · Engine {'AB'[side]} · {info.get('nodes', 0):,} reported nodes")
 
     def load_game(self, index):
