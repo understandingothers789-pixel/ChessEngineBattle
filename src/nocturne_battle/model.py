@@ -59,12 +59,11 @@ class Limit:
     value: int | float = 1_000_000
 
     def validate(self):
-        if self.mode not in ('nodes', 'depth', 'movetime') or not math.isfinite(self.value) or self.value <= 0:
-            raise ValueError('Choose a positive nodes, depth or movetime limit')
-        if self.mode in ('nodes', 'depth') and int(self.value) != self.value:
-            raise ValueError('Nodes and depth must be integers')
-        if self.mode == 'depth' and self.value > 128:
-            raise ValueError('Depth must be at most 128')
+        if self.mode in ('nodes', 'depth'):
+            if type(self.value) is not int or not 1 <= self.value <= (2**63-1 if self.mode == 'nodes' else 128):
+                raise ValueError('Nodes require integers from 1 to 2^63−1; depth from 1 to 128')
+        elif self.mode != 'movetime' or not math.isfinite(self.value) or self.value <= 0:
+            raise ValueError('Choose a positive finite time per move')
 
 
 class Opening(str):
@@ -125,6 +124,29 @@ class Database:
           CREATE TABLE IF NOT EXISTS snapshots(search TEXT NOT NULL, checkpoint TEXT NOT NULL,
             payload TEXT NOT NULL, PRIMARY KEY(search,checkpoint));
         ''')
+        self.migrate_payloads()
+
+    def migrate_payloads(self):
+        """No row rewrites: back up old databases before enabling additive v3 data."""
+        version = self.get('payload_schema', 0)
+        if version > 3:
+            raise ValueError('This library requires a newer application')
+        if version < 3:
+            backup = self.path.with_suffix(self.path.suffix+'.pre-v3.bak')
+            if not backup.exists():
+                with sqlite3.connect(backup) as destination:
+                    self.db.backup(destination)
+            self.put('payload_schema', 3)
+
+    def save_tournament(self, state):
+        payload = json.dumps(state)
+        with self.db:
+            self.db.executemany('INSERT OR REPLACE INTO settings VALUES (?,?)',
+                [('tournament',payload), ('tournament:'+state['id'],payload)])
+
+    def search_run(self, sid):
+        row = self.db.execute('SELECT payload,status FROM searches WHERE id=?', (sid,)).fetchone()
+        return json.loads(row[0]) | {'status':row[1]} if row else None
 
     def put(self, key, value):
         with self.db:

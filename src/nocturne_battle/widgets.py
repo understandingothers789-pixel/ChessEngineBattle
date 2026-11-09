@@ -11,7 +11,7 @@ from PySide6.QtGui import QColor, QPainter, QPen, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QFormLayout, QLabel, QPushButton, QComboBox, QLineEdit, QSpinBox, QCheckBox,
     QSplitter, QScrollArea, QFileDialog, QMessageBox, QDialog, QDialogButtonBox,
-    QGroupBox, QTabWidget, QTableWidget, QTableWidgetItem, QPlainTextEdit)
+    QGroupBox, QTabWidget, QTableWidget, QTableWidgetItem, QPlainTextEdit, QSlider)
 from nocturne.core.game import Game
 from nocturne.core.board import Board
 from nocturne.engine.uci_types import score_label
@@ -187,13 +187,23 @@ class AnalysisPanel(QWidget):
         self.record = None
         self.pinned = False
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel(title))
+        self.title = QLabel(title)
+        layout.addWidget(self.title)
         self.run = QComboBox()
         self.run.currentIndexChanged.connect(self.choose_run)
         layout.addWidget(self.run)
         self.checkpoint = QComboBox()
         self.checkpoint.currentIndexChanged.connect(self.choose)
         layout.addWidget(self.checkpoint)
+        navigation = QHBoxLayout()
+        button('Previous',lambda:self.checkpoint.setCurrentIndex(max(0,self.checkpoint.currentIndex()-1)),navigation)
+        button('Next',lambda:self.checkpoint.setCurrentIndex(min(len(self.records)-1,self.checkpoint.currentIndex()+1)),navigation)
+        button('Final result',lambda:self.checkpoint.setCurrentIndex(len(self.records)) if self.final_record else None,navigation)
+        layout.addLayout(navigation)
+        self.timeline = QSlider(Qt.Orientation.Horizontal)
+        self.timeline.valueChanged.connect(self.checkpoint.setCurrentIndex)
+        layout.addWidget(self.timeline)
+        self.final_record = None
         self.pv_rank = QSpinBox()
         self.pv_rank.setRange(1, 5)
         self.pv_rank.setPrefix('Compare PV #')
@@ -235,10 +245,11 @@ class AnalysisPanel(QWidget):
         self.run.clear()
         if runs is None:
             runs = list({r['id']: r for r in records}.values())[::-1]
+        self.run_metadata = {run['id']:run for run in runs}
         for run in runs:
             from datetime import datetime
             label = (f"{datetime.fromtimestamp(run['timestamp']).strftime('%Y-%m-%d %H:%M:%S')} · "
-                     f"{run.get('kind', 'continuous')} · {run['provenance']} · {run['limit']} · "
+                     f"{run.get('kind', 'continuous')} · {run['provenance']} · {node_label(run['limit']['value']) if run['limit']['mode']=='nodes' else run['limit']['value']} {run['limit']['mode']} · "
                      f"PV{run['multipv']} · {run['status']} · {run['id'][:8]}")
             self.run.addItem(label, run['id'])
             self.run.setItemData(self.run.count()-1, str(run), Qt.ItemDataRole.ToolTipRole)
@@ -256,6 +267,16 @@ class AnalysisPanel(QWidget):
         for record in self.records:
             self.checkpoint.addItem(f"{node_label(record['requested'])} → {node_label(record['actual'])} actual · "
                 f"{record['provenance']} · PV{record['multipv']} · {record['status']}")
+        run = getattr(self,'run_metadata',{}).get(sid,{})
+        result = run.get('final_result',{})
+        lines = result.get('lines',{})
+        self.final_record = None
+        if lines:
+            actual = max((line.get('nodes',0) for line in lines.values()),default=0)
+            self.final_record = dict(run,lines=lines,requested=run['limit']['value'] if run['limit']['mode']=='nodes' else max(1,actual),
+                actual=actual,complete=len(lines)>=run['multipv'],final=True)
+            self.checkpoint.addItem('Final result · bestmove '+str(result.get('move')))
+        self.timeline.blockSignals(True); self.timeline.setRange(0,max(0,len(self.records)-1)); self.timeline.blockSignals(False)
         index = next((i for i,r in enumerate(self.records) if r['requested'] == previous), len(self.records)-1)
         self.checkpoint.setCurrentIndex(index)
         self.checkpoint.blockSignals(False)
@@ -263,7 +284,9 @@ class AnalysisPanel(QWidget):
 
     def choose(self):
         index = self.checkpoint.currentIndex()
-        self.record = self.records[index] if 0 <= index < len(self.records) else None
+        self.record = self.records[index] if 0 <= index < len(self.records) else self.final_record if index == len(self.records) else None
+        if index < len(self.records):
+            self.timeline.blockSignals(True);self.timeline.setValue(index);self.timeline.blockSignals(False)
         self.panel.clear()
         if self.record:
             record = self.record
@@ -273,7 +296,7 @@ class AnalysisPanel(QWidget):
                 rank = line['multipv']
                 if rank in self.panel.rows:
                     self.panel.rows[rank][2].setToolTip(
-                        f"Reported {line.get('nodes', 0):,} nodes · {line.get('nps', 0):,} nps · "
+                        f"Freshness: {record.get('rank_freshness',{}).get(str(rank),record.get('rank_freshness',{}).get(rank,'not recorded for legacy data'))}\nReported {line.get('nodes', 0):,} nodes · {line.get('nps', 0):,} nps · "
                         f"{line.get('seconds', 0):g}s · depth {line.get('depth', 0)} / seldepth {line.get('seldepth', 0)}")
             self.panel.pinned.update(self.panel.lines)
             missing = []
@@ -288,13 +311,14 @@ class AnalysisPanel(QWidget):
             best = record['lines'].get('1', {})
             depths = {line.get('depth') for line in record['lines'].values()}
             freshness = 'Mixed-depth ranks; not synchronized' if len(depths) > 1 else 'Observed ranks; per-line node counts may differ'
-            self.details.setText(f"{freshness} · Not recorded: {', '.join(missing) or 'none between recorded bounds'}\n{record['profile']['name']} · {record['fen']}\n"
+            self.details.setText(f"{freshness} · Not recorded: {', '.join(missing) or 'none between recorded bounds'}\n{record['profile']['name']}\n"
                 f"Depth {best.get('depth', 0)} / seldepth {best.get('seldepth', 0)} · "
                 f"{best.get('seconds', 0):g}s · {best.get('nps', 0):,} nps\n"
-                f"{record.get('kind', 'continuous')} search · {'complete ranks' if record['complete'] else 'INCOMPLETE ranks'}\n"
+                f"{'FINAL RESULT · ' if record.get('final') else ''}{record.get('kind', 'continuous')} search · {'complete ranks' if record['complete'] else 'INCOMPLETE ranks'}\n"
                 'Scores use selected perspective; ranks may have different depths/nodes (hover a line for statistics).')
         else:
             self.details.setText('Missing analysis. Queue an explicit supplementary search below.')
+        if self.record:self.details.setToolTip(self.record['fen'])
         self.selected.emit()
 
 
@@ -307,12 +331,21 @@ class Evolution(QWidget):
         self.series = [[], []]
         self.enabled = [True, True]
         self.points = []
+        self.metric = 'evaluation'
+        self.setMouseTracking(True)
+
+    def mouseMoveEvent(self,event):
+        from PySide6.QtWidgets import QToolTip
+        if self.points:
+            point,side,record=min(self.points,key=lambda item:(item[0]-event.position()).manhattanLength())
+            if (point-event.position()).manhattanLength()<25:
+                QToolTip.showText(event.globalPosition().toPoint(),f"Engine {'AB'[side]} · target {record['requested']:,} · actual {record['actual']:,} · {record['lines'].get('1',{})}",self)
 
     def paintEvent(self, event):
         p = QPainter(self)
         p.fillRect(self.rect(), QColor('#1b2028'))
         p.setPen(QColor('#bfc8ce'))
-        p.drawText(12, 20, 'Evaluation (White cp) / log₂ reported checkpoint · click a point')
+        p.drawText(12, 20, ('Depth' if self.metric == 'depth' else 'Evaluation (White cp)')+' / log₂ checkpoint · click a point')
         rows = [r for series in self.series for r in series]
         if not rows:
             p.drawText(12, 65, 'Stored search history will appear here. Mate/missing/bound scores are excluded.')
@@ -329,12 +362,12 @@ class Evolution(QWidget):
             previous_id = None
             for r in sorted(series, key=lambda r: (r['timestamp'], r['requested'])):
                 line = r['lines'].get('1', {})
-                if line.get('score_type') != 'cp' or line.get('bound', 'exact') != 'exact':
+                if self.metric != 'depth' and (line.get('score_type') != 'cp' or line.get('bound', 'exact') != 'exact'):
                     previous = None
                     continue
                 x = 35 + (math.log2(r['requested'])-lo)/max(1, hi-lo)*(self.width()-70)
                 perspective = 1 if r['fen'].split()[1] == 'w' else -1
-                value = line['score_value'] * perspective
+                value = line.get('depth',0)*4 if self.metric == 'depth' else line['score_value'] * perspective
                 y = self.height()/2 - max(-500, min(500, value))/500*(self.height()/2-45)
                 from PySide6.QtCore import QPointF
                 point = QPointF(x, y)

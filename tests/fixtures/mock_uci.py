@@ -24,6 +24,14 @@ for raw in sys.stdin:
             for move in tail[1].split():
                 board.push_uci(move)
     elif line.startswith('go'):
+        if '--crash' in sys.argv:
+            import os
+            os._exit(7)
+        if '--illegal' in sys.argv:
+            print('bestmove e2e5',flush=True);continue
+        if '--silent' in sys.argv:continue
+        if '--no-info' in sys.argv:
+            print('bestmove '+next(iter(board.legal_moves)).uci(),flush=True);continue
         if '--wait' in sys.argv:
             import time
             time.sleep(0.2)

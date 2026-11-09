@@ -62,8 +62,8 @@ def test_exact_position_and_same_position_guard():
     assert position_identity(game) != position_identity(other)
     with pytest.raises(ValueError):
         compare({'position':'a'}, {'position':'b'})
-    a = dict(position='same', lines={'1':info(), '2':dict(info(), pv=['d2d4'])})
-    b = dict(position='same', lines={'1':dict(info(),pv=['d2d4']), '2':info()})
+    a = dict(position='same', lines={'1':info(), '2':dict(info(rank=2), pv=['d2d4'])})
+    b = dict(position='same', lines={'1':dict(info(),pv=['d2d4']), '2':info(rank=2)})
     result = compare(a,b)
     assert result['status'] == 'Different best moves'
     assert result['overlap'] == [('e2e4',1,2), ('d2d4',2,1)]

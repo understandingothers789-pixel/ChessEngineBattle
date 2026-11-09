@@ -9,6 +9,24 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 - [Download Nocturne Battle 0.1.0 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42535154560/artifacts/13639565345) — successful GitHub Actions build. Sign in to GitHub to download; workflow artifacts expire. Extract the ZIP and run NocturneBattle.exe.
 
+## Version 0.3.0 development branch
+
+New: exact played-move search attribution, per-rank freshness, integer-safe node
+limits, configurable silence timeout, candidate matrix/heatmap, checkpoint slider
+and final-result navigation, and an incremental sortable game browser.
+
+Choose **Node Scaling Experiment** to test multiple node ratios using Engine A's
+profile and the book/pairs/seed from Match Setup. Build the conditions, then
+explicitly Start/Resume. Conditions execute sequentially with the same opening
+schedule, and remain separate in history and exports. Pause before opening a
+different condition. Playing MultiPV defaults to 1; supplementary jobs do not
+choose moves. Confidence intervals use an exploratory opening-cluster bootstrap;
+insufficient or unbounded outcomes are shown explicitly.
+
+See [0.3.0 engineering report](docs/0.3.0_REPORT.md). To run optional real-engine
+checks, set `NOCTURNE_UCI_ENGINE` to your own trusted executable and run
+`python -m pytest tests/test_real_engine.py -q`. No engines are downloaded or bundled.
+
 ## Version 0.2.0 development branch
 
 Four workspace modes keep setup, live viewing, comparison and the match library

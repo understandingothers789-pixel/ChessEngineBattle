@@ -8,7 +8,7 @@ from nocturne.engine.uci_types import AnalysisLimits
 from nocturne.gui.engine import EngineController
 
 from .history import Checkpoints
-from .model import Profile, Limit, executable_hash
+from .model import Profile, Limit, executable_hash, position_identity
 
 
 class Search(QObject):
@@ -26,14 +26,21 @@ class Search(QObject):
         self.engine.connection.configured.connect(self.configured)
         self.context = None
         self.generation = None
+        self.last_completed = None
+        self.watchdog = QTimer(self); self.watchdog.setSingleShot(True)
+        self.watchdog.timeout.connect(self.timed_out)
         self.render_pending = {}
         self.render_timer = QTimer(self); self.render_timer.setSingleShot(True)
         self.render_timer.setInterval(80); self.render_timer.timeout.connect(self.flush_render)
 
     def start(self, game, profile, limit, multipv=1, provenance='live-playing', start=1_000_000,
-              maximum=None, tournament=None, kind="continuous"):
+              maximum=None, tournament=None, kind="continuous", silence_timeout_ms=120000):
         self.cancel()
         limit.validate()
+        if kind not in ('continuous', 'independent'): raise ValueError('Unknown search kind')
+        if kind == 'independent' and limit.mode != 'nodes': raise ValueError('Independent checkpoints require node limits')
+        self.silence_timeout_ms = silence_timeout_ms
+        self.last_completed = None
         if not 1 <= multipv <= 5:
             raise ValueError('MultiPV must be 1–5')
         identity = executable_hash(profile.path)
@@ -45,6 +52,7 @@ class Search(QObject):
         self.required = min(multipv, len(list(game.board.legal_moves())))
         self.context = self.db.begin(game, profile, limit, multipv, provenance, tournament)
         self.context['kind'] = kind
+        self.context['silence_timeout_ms'] = silence_timeout_ms
         self.context['checkpoint_start'] = start
         self.context['checkpoint_maximum'] = maximum
         with self.db.db:
@@ -54,6 +62,7 @@ class Search(QObject):
                                 seconds=float(limit.value) if limit.mode == 'movetime' else 1,
                                 nodes=int(limit.value) if limit.mode == 'nodes' else None)
         try:
+            if silence_timeout_ms > 0: self.watchdog.start(silence_timeout_ms)
             self.generation = self.engine.start(game, limits, external=profile.path, options=profile.options,
                 arguments=profile.arguments, multipv=multipv, nodes_only=limit.mode == 'nodes',
                 time_nodes_only=limit.mode == 'movetime', time_enabled=limit.mode == 'movetime')
@@ -61,6 +70,13 @@ class Search(QObject):
             self.db.finish(self.context['id'], 'failed')
             self.context = None
             raise
+
+    def timed_out(self):
+        if self.context:
+            context = self.context
+            self.cancel()
+            self.db.finish(context['id'], 'failed', {'message':'No valid UCI search information or bestmove before the configured silence timeout'})
+            self.failed.emit('Search silence timeout; search stopped. Resume starts a separate search.')
 
     def configured(self):
         connection = self.engine.connection
@@ -76,6 +92,7 @@ class Search(QObject):
         validated = self.engine._validated_info(info)
         if not validated:
             return
+        if self.silence_timeout_ms > 0: self.watchdog.start(self.silence_timeout_ms)
         snapshot = self.collector.observe(validated, self.required)
         if snapshot and self.context['kind'] == 'continuous':
             try:
@@ -96,6 +113,7 @@ class Search(QObject):
         if generation != self.generation or not self.context:
             return
         if kind in ('result', 'error'):
+            self.watchdog.stop()
             self.flush_render()
             context, self.context = self.context, None
             complete = all(rank in self.collector.lines for rank in range(1, self.required+1))
@@ -103,15 +121,22 @@ class Search(QObject):
             if kind == 'result' and context['kind'] == 'independent':
                 lines = dict(self.collector.lines)
                 actual = max((x.get('nodes', 0) for x in lines.values()), default=0)
-                self.db.capture(context, dict(requested=context['limit']['value'], actual=actual,
-                    lines=lines, complete=complete, final_bestmove=data.get('move')))
+                try:
+                    self.db.capture(context, dict(requested=context['limit']['value'], actual=actual,
+                        lines=lines, complete=complete, final_bestmove=data.get('move'),
+                        rank_freshness=self.collector.freshness()))
+                except ValueError as exc:
+                    self.db.finish(context['id'], 'failed', data)
+                    self.failed.emit(str(exc)); return
             self.db.finish(context['id'], status, data)
             if kind == 'result':
-                self.completed.emit(data)
+                self.last_completed = context | {'status':status}
+                self.completed.emit(dict(data, search_run_id=context['id']))
             else:
                 self.failed.emit(data['message'])
 
     def cancel(self):
+        self.watchdog.stop()
         self.render_timer.stop(); self.render_pending.clear()
         if self.context:
             self.db.finish(self.context['id'], 'interrupted')
@@ -161,8 +186,7 @@ class Tournament(QObject):
     def save(self):
         if not self.state:
             return
-        self.db.put('tournament', self.state)
-        self.db.put('tournament:'+self.state['id'], self.state)
+        self.db.save_tournament(self.state)
         self.changed.emit()
 
     def resume(self):
@@ -197,7 +221,7 @@ class Tournament(QObject):
             self.search.start(self.game, Profile(**self.state['profiles'][side]),
                               Limit(**self.state['limits'][side]), self.state['multipv'],
                               start=self.state['checkpoint'], maximum=self.state['maximum'],
-                              tournament=self.state['id'])
+                              tournament=self.state['id'],silence_timeout_ms=self.state.get('silence_timeout_ms',120000))
         except (ValueError, OSError) as exc:
             self.error(str(exc))
         self.changed.emit()
@@ -206,8 +230,19 @@ class Tournament(QObject):
         if not self.active:
             return
         try:
+            context = self.search.last_completed
+            if not context or data.get('search_run_id') != context['id']:
+                raise ValueError('Move has no verified originating search')
+            if context['game'] != self.game.id or context['position'] != position_identity(self.game):
+                raise ValueError('Search result belongs to a different game or position')
+            ply = self.game.cursor + 1
+            link = dict(game=self.game.id, ply=ply, position=context['position'],
+                        profile=context['profile'], search_run_id=context['id'], limit=context['limit'],
+                        bestmove=data['move'], played_move=data['move'], status=context['status'])
             self.game.play(self.game.board.parse_uci(data['move']))
-            self.state['games'][self.state['index']]['moves'].append(data['move'])
+            item = self.state['games'][self.state['index']]
+            item['moves'].append(data['move'])
+            item.setdefault('move_searches', {})[str(ply)] = link
             self.save()
             QTimer.singleShot(0, self.next)
         except (ValueError, TypeError) as exc:

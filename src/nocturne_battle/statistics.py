@@ -1,37 +1,65 @@
-"""Paired-opening uncertainty: normal interval on independent pair scores.
-
-Games within a color-reversed pair are kept together. This descriptive model is
-not SPRT and is unreliable for very small samples or all-identical pair scores.
-"""
+"""Exploratory opening-cluster bootstrap; never a formal sequential test."""
+from collections import defaultdict
+from functools import lru_cache
 import math
-import statistics
+import random
+
+
+def elo(score):
+    return 400*math.log10(score/(1-score)) if 0 < score < 1 else (-math.inf if score == 0 else math.inf)
+
+
+@lru_cache(maxsize=128)
+def cluster_interval(clusters):
+    if len(clusters) < 10 or len({v for c in clusters for v in c}) <= 1:
+        return None
+    rng = random.Random(730)
+    draws = []
+    for _ in range(2000):
+        sample = [value for _ in clusters for value in clusters[rng.randrange(len(clusters))]]
+        draws.append(sum(sample)/len(sample))
+    draws.sort()
+    if draws[49] == draws[1949]: return None
+    return draws[49], draws[1949]
+
+
+def analyze(state):
+    pairs = defaultdict(list)
+    identities = {}
+    wins = losses = draws = 0
+    for game in state['games']:
+        if game['result'] == '*': continue
+        result = game['result']
+        score = 0.5 if result == '1/2-1/2' else float((result == '1-0') == game['a_white'])
+        pairs[game['pair']].append(score)
+        # Preserve repeated opening dependence. Old fixture-only rows without
+        # position metadata use their pair identifier as a conservative fallback.
+        identities[game['pair']] = (game.get('fen',str(game['pair'])),
+            tuple(game.get('moves',[])[:game.get('opening_plies',0)]))
+        wins += score == 1; losses += score == 0; draws += score == 0.5
+    clusters = defaultdict(list)
+    for pair, values in pairs.items():
+        if len(values) == 2:
+            clusters[identities[pair]].append(sum(values)/2)
+    ordered = tuple(tuple(values) for _,values in sorted(clusters.items(),key=lambda item:str(item[0])))
+    interval = cluster_interval(ordered)
+    n = wins+losses+draws
+    score = (wins+draws/2)/n if n else None
+    return dict(games=n,wins=wins,losses=losses,draws=draws,score=score,
+                elo=elo(score) if score is not None else None,
+                interval=tuple(elo(x) for x in interval) if interval else None,
+                pairs=sum(len(v) for v in clusters.values()),clusters=len(clusters),
+                method='opening-cluster percentile bootstrap (2000 replicates, seed 730)',
+                status='exploratory' if interval else 'insufficient independent opening information')
 
 
 def summarize(state):
-    pairs = {}
-    wins = losses = draws = 0
-    for game in state['games']:
-        result = game['result']
-        if result == '*':
-            continue
-        score = 0.5 if result == '1/2-1/2' else float((result == '1-0') == game['a_white'])
-        pairs.setdefault(game['pair'], []).append(score)
-        wins += score == 1; losses += score == 0; draws += score == 0.5
-    n = wins+losses+draws
-    text = f'Completed {n}/{len(state["games"])} · A wins {wins} · B wins {losses} · draws {draws}\n'
-    if not n:
-        return text+'No strength estimate yet.'
-    score = (wins+draws/2)/n
-    elo = lambda p: 400*math.log10(p/(1-p)) if 0 < p < 1 else (-math.inf if p == 0 else math.inf)
-    text += f'A score {score:.1%} · logistic Elo estimate {elo(score):+.1f}\n'
-    paired = [sum(values)/2 for values in pairs.values() if len(values) == 2]
-    if len(paired) >= 10 and len(set(paired)) > 1:
-        mean = statistics.mean(paired)
-        margin = 1.96*statistics.stdev(paired)/math.sqrt(len(paired))
-        text += f'Approximate 95% paired-score Elo interval: {elo(max(0,mean-margin)):+.1f} to {elo(min(1,mean+margin)):+.1f}\n'
+    r = analyze(state)
+    text = f"Completed {r['games']}/{len(state['games'])} · A wins {r['wins']} · B wins {r['losses']} · draws {r['draws']}\n"
+    if not r['games']: return text+'No strength estimate yet.'
+    text += f"A score {r['score']:.1%} · logistic Elo estimate {r['elo']:+.1f} · draws {r['draws']/r['games']:.1%}\n"
+    if r['interval']:
+        text += f"Exploratory 95% paired-score Elo interval: {r['interval'][0]:+.1f} to {r['interval'][1]:+.1f}\n"
     else:
-        text += 'Confidence interval unavailable: need ≥10 complete, varying pair scores.\n'
-    text += f'Complete opening pairs: {len(paired)}. Draw-heavy results do not establish a definitive strength difference.\n'
-    for pair, scores in sorted(pairs.items()):
-        text += f'Pair {pair+1}: A scored {sum(scores):g}/{len(scores)}\n'
-    return text
+        text += 'Confidence interval unavailable: need ≥10 independent opening clusters and varying pair scores.\n'
+    return text+f"Complete opening pairs: {r['pairs']} · distinct opening clusters: {r['clusters']}\n{r['method']}\nNot SPRT; repeated openings are grouped. Infinite estimates are unbounded, not precise strength measurements."

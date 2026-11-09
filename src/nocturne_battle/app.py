@@ -11,7 +11,7 @@ from PySide6.QtGui import QColor, QPainter, QPen, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QFormLayout, QLabel, QPushButton, QComboBox, QLineEdit, QSpinBox, QCheckBox,
     QSplitter, QScrollArea, QFileDialog, QMessageBox, QDialog, QDialogButtonBox,
-    QGroupBox, QTabWidget, QTableWidget, QTableWidgetItem, QPlainTextEdit, QTextBrowser)
+    QGroupBox, QTabWidget, QTableWidget, QTableWidgetItem, QPlainTextEdit, QTextBrowser, QListWidget,QListWidgetItem)
 from nocturne.core.game import Game
 from nocturne.core.board import Board
 from nocturne.engine.uci_types import score_label
@@ -26,6 +26,10 @@ from nocturne.snapshots import node_label
 from .history import compare, select_checkpoint
 from .model import Database, Profile, Limit, executable_hash, openings, schedule
 from .runtime import Search, Tournament
+from .game_browser import GameBrowser
+from .experiments import ExperimentRunner
+from .experiment_ui import ScalingPanel
+from .comparison_ui import CandidateViews
 from .model import parse_budget
 
 
@@ -45,7 +49,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Nocturne Battle 0.2.0 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Nocturne Battle 0.3.0 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -67,7 +71,7 @@ class Window(QMainWindow):
         title.setStyleSheet('font-size: 22px; padding: 12px;')
         outer.addWidget(title)
         self.workspace = QComboBox()
-        self.workspace.addItems(['Match Setup', 'Live Match', 'Analysis Comparison', 'Results & History'])
+        self.workspace.addItems(['Match Setup', 'Live Match', 'Analysis Comparison', 'Results & History', 'Node Scaling Experiment'])
         outer.addWidget(self.workspace)
 
         self.splitter = QSplitter()
@@ -100,11 +104,9 @@ class Window(QMainWindow):
         self.game_filter.setPlaceholderText('Filter games by engine, pair, result or status')
         self.game_filter.textChanged.connect(self.filter_games)
         board_layout.addWidget(self.game_filter)
-        self.games_table = QTableWidget(0, 8)
-        self.games_table.setHorizontalHeaderLabels(['Game','Pair','White','Black','Result','Plies','Opening','Status'])
+        self.games_table = GameBrowser()
         self.games_table.setMaximumHeight(180)
-        self.games_table.setSortingEnabled(True)
-        self.games_table.cellClicked.connect(self.table_game)
+        self.games_table.clicked.connect(lambda index:self.table_game(index.row(),index.column()))
         board_layout.addWidget(self.games_table)
         self.moves = QTextBrowser()
         self.moves.setOpenLinks(False)
@@ -130,6 +132,9 @@ class Window(QMainWindow):
         row.addWidget(self.link)
         row.addWidget(self.ratio)
         row.addWidget(self.dual)
+        compact=QCheckBox('Compact')
+        compact.toggled.connect(lambda enabled:[p.details.setVisible(not enabled) for p in self.panels])
+        row.addWidget(compact)
         work_layout.addLayout(row)
         self.tabs = QTabWidget()
         self.panels = [AnalysisPanel('ENGINE A'), AnalysisPanel('ENGINE B')]
@@ -143,6 +148,9 @@ class Window(QMainWindow):
         evolution_area = QWidget()
         evo_layout = QVBoxLayout(evolution_area)
         self.graph = Evolution()
+        metric=QComboBox();metric.addItems(['Evaluation','Depth'])
+        metric.currentIndexChanged.connect(lambda index:(setattr(self.graph,'metric','depth' if index else 'evaluation'),self.graph.update()))
+        evo_layout.addWidget(metric)
         self.graph.point_selected.connect(self.graph_select)
         evo_layout.addWidget(self.graph)
         series_row = QHBoxLayout()
@@ -156,7 +164,8 @@ class Window(QMainWindow):
         self.history.setHorizontalHeaderLabels(['Engine', 'Target → actual', 'Best move', 'Evaluation (White)', 'Provenance'])
         self.history.cellClicked.connect(self.history_select)
         evo_layout.addWidget(self.history)
-        self.discovery = QLabel(); self.discovery.setWordWrap(True)
+        self.discovery = QListWidget();self.discovery.setMaximumHeight(130)
+        self.discovery.itemActivated.connect(self.milestone_clicked)
         evo_layout.addWidget(self.discovery)
         self.tabs.addTab(evolution_area, 'Search evolution')
         self.stats = QPlainTextEdit()
@@ -184,6 +193,13 @@ class Window(QMainWindow):
             live_layout.addWidget(panel)
             self.live_panels.append(panel)
         self.tabs.addTab(live, 'Live Match')
+        self.candidate_views = CandidateViews()
+        self.candidate_views.inspect.connect(self.inspect_candidate)
+        self.tabs.addTab(self.candidate_views, 'Candidate rankings')
+        self.experiment = ExperimentRunner(db,self.tournament)
+        self.scaling = ScalingPanel(self,self.experiment)
+        self.tabs.addTab(self.scaling, 'Node Scaling Experiment')
+
 
         work_layout.addWidget(self.tabs, 1)
         self.comparison = QLabel('Compare This Position to retrieve exact-position history.')
@@ -244,6 +260,8 @@ class Window(QMainWindow):
         self.seed.setRange(0, 2147483647)
         self.randomized = QCheckBox('Randomize openings')
         self.maximum = QLineEdit('')
+        self.silence_timeout = QSpinBox();self.silence_timeout.setRange(0,3600);self.silence_timeout.setValue(120)
+        adv_form.addRow('Search silence timeout (seconds; 0 disables)',self.silence_timeout)
         adv_form.addRow('Seed', self.seed)
         adv_form.addRow(self.randomized)
         adv_form.addRow('Maximum checkpoint (blank: unlimited)', self.maximum)
@@ -271,7 +289,7 @@ class Window(QMainWindow):
         config.addStretch()
         self.status = QLabel('Ready · add your UCI engines. No engines bundled.')
         self.status.setWordWrap(True)
-        config.addWidget(self.status)
+        self.statusBar().addPermanentWidget(self.status,1)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(config_area)
@@ -336,6 +354,7 @@ class Window(QMainWindow):
         if index == 1: self.tabs.setCurrentIndex(3)
         if index == 2: self.tabs.setCurrentIndex(0)
         if index == 3: self.tabs.setCurrentIndex(2)
+        if index == 4: self.tabs.setCurrentIndex(5)
 
     def open_archive(self):
         if self.tournament.active:
@@ -355,13 +374,14 @@ class Window(QMainWindow):
         self.match_changed()
 
     def filter_games(self):
-        text = self.game_filter.text().lower()
-        for row in range(self.games_table.rowCount()):
-            self.games_table.setRowHidden(row, not any(text in self.games_table.item(row,col).text().lower()
-                for col in range(self.games_table.columnCount()) if self.games_table.item(row,col)))
+        self.games_table.proxy.setFilterFixedString(self.game_filter.text())
 
     def table_game(self, row, col):
-        self.select_game(self.games_table.item(row,0).data(Qt.ItemDataRole.UserRole))
+        self.select_game(self.games_table.source_row(row))
+
+    def inspect_candidate(self, side, record, rank):
+        self.graph_select(side,record)
+        self.panels[side].pv_rank.setValue(rank)
 
     def selected_profiles(self):
         if not self.profiles:
@@ -422,6 +442,8 @@ class Window(QMainWindow):
             self.tournament.create(profiles, limits, schedule(openings(self.book.text()),
                 self.pairs.value(), self.seed.value(), self.randomized.isChecked()),
                 self.play_pv.value(), start, maximum, self.seed.value())
+            self.tournament.state['silence_timeout_ms']=self.silence_timeout.value()*1000
+            self.tournament.save()
             self.follow_live = True
             self.save_settings()
             self.tournament.resume()
@@ -435,29 +457,21 @@ class Window(QMainWindow):
     def match_changed(self):
         state = self.tournament.state
         if not state:
+            self.games_table.hide();self.game_filter.hide()
             self.show_game()
             return
+        self.games_table.show();self.game_filter.show()
         self.game_selector.blockSignals(True)
         current = self.game_selector.currentIndex()
-        self.game_selector.clear()
-        self.game_selector.addItems([f"Game {i+1} · Pair {g['pair']+1} · A {'White' if g['a_white'] else 'Black'} · {g['result']}"
-                                     for i, g in enumerate(state['games'])])
+        if self.game_selector.count() != len(state['games']):
+            self.game_selector.clear()
+            self.game_selector.addItems([str(i+1) for i in range(len(state['games']))])
         index = min(state['index'], len(state['games'])-1) if self.follow_live else max(0, current)
         self.game_selector.setCurrentIndex(index)
         self.game_selector.blockSignals(False)
         if self.follow_live:
             self.load_game(index)
-        self.games_table.setSortingEnabled(False)
-        self.games_table.setRowCount(len(state['games']))
-        for row, game in enumerate(state['games']):
-            white = 0 if game['a_white'] else 1
-            status = 'Completed' if game['result'] != '*' else 'Running' if self.tournament.active and row == state['index'] else 'Paused / pending'
-            values = [str(row+1),str(game['pair']+1),state['profiles'][white]['name'],state['profiles'][1-white]['name'],game['result'],str(len(game['moves'])),game.get('opening_name',''),status]
-            for col,value in enumerate(values):
-                cell = QTableWidgetItem(value); cell.setData(Qt.ItemDataRole.UserRole,row)
-                self.games_table.setItem(row,col,cell)
-        self.games_table.setSortingEnabled(True)
-        self.filter_games()
+        self.games_table.games.update_state(state,self.tournament.active)
         results = state['games']
         wins = sum((g['result']=='1-0' and g['a_white']) or (g['result']=='0-1' and not g['a_white']) for g in results)
         losses = sum((g['result']=='0-1' and g['a_white']) or (g['result']=='1-0' and not g['a_white']) for g in results)
@@ -503,13 +517,32 @@ class Window(QMainWindow):
         self.show_game()
 
     def original_thinking(self):
-        if self.view_game.cursor == 0: return
-        self.navigate(self.view_game.cursor-1)
-        for panel in self.panels:
-            runs = self.db.runs(self.view_game, self.selected_profiles()[self.panels.index(panel)])
-            run = next((r for r in runs if r['provenance'] == 'live-playing' and r['game'] == self.view_game.id), None)
-            if run:
-                panel.run.setCurrentIndex(panel.run.findData(run['id']))
+        ply = self.view_game.cursor
+        if not ply:return
+        state = self.tournament.state
+        item = state['games'][self.game_selector.currentIndex()] if state else {}
+        link = item.get('move_searches',{}).get(str(ply))
+        self.navigate(ply-1)
+        if link:
+            run = self.db.search_run(link['search_run_id'])
+            from .model import position_identity
+            if not run or run['position'] != position_identity(self.view_game) or run['game'] != self.view_game.id:
+                self.status.setText('Recorded search attribution is missing or incompatible.');return
+            profile = Profile(**run['profile'])
+            self.syncing=True
+            self.panels[0].load(self.db.records(self.view_game,profile),self.view_game.board.turn,[run])
+            self.panels[1].load([],self.view_game.board.turn,[])
+            self.syncing=False
+            self.selection_changed(0)
+            self.panels[0].title.setText('PLAYING ENGINE · exact move source')
+            self.panels[1].title.setText('No second playing search for this move')
+            self.status.setText('Exact played-move source: '+run['id'])
+        else:
+            for side,panel in enumerate(self.panels):
+                runs = self.db.runs(self.view_game,self.selected_profiles()[side])
+                candidates = [r for r in runs if r['provenance']=='live-playing' and r['game']==self.view_game.id]
+                if len(candidates)==1:panel.run.setCurrentIndex(panel.run.findData(candidates[0]['id']))
+            self.status.setText('Legacy move: source search not recorded. Compatible history is uncertain attribution.')
         self.workspace.setCurrentIndex(2)
 
     def return_live(self):
@@ -539,18 +572,24 @@ class Window(QMainWindow):
         if not self.profiles:
             return
         self.syncing = True
-        for panel, profile in zip(self.panels, self.selected_profiles()):
+        for side,(panel, profile) in enumerate(zip(self.panels, self.selected_profiles())):
+            panel.title.setText('ENGINE '+'AB'[side])
             panel.load(self.db.records(self.view_game, profile), self.view_game.board.turn if self.perspective.currentIndex() == 0 else 1, self.db.runs(self.view_game, profile))
         self.syncing = False
         self.selection_changed(0)
         self.update_history()
 
     def update_history(self):
+        self.candidate_views.refresh(self.panels)
         self.graph.series = [panel.records for panel in self.panels]
         self.graph.update()
         from .history import milestones
         events = [f"{'AB'[side]} · {node_label(nodes)}: {text}" for side,panel in enumerate(self.panels) for nodes,text in milestones(panel.records)]
-        self.discovery.setText('\n'.join(events[-12:]) or 'No recorded discovery milestones for these runs.')
+        self.discovery.clear()
+        for side,panel in enumerate(self.panels):
+            for nodes,text in milestones(panel.records):
+                item=QListWidgetItem(f"{'AB'[side]} · {node_label(nodes)}: {text}")
+                item.setData(Qt.ItemDataRole.UserRole,(side,nodes));self.discovery.addItem(item)
         self.history_rows = [(side, record) for side, panel in enumerate(self.panels) for record in panel.records]
         self.history.setRowCount(len(self.history_rows))
         for row, (side, record) in enumerate(self.history_rows):
@@ -594,6 +633,11 @@ class Window(QMainWindow):
         finally:
             self.syncing = False
         self.update_history()
+
+    def milestone_clicked(self,item):
+        side,nodes=item.data(Qt.ItemDataRole.UserRole)
+        record=next((r for r in self.panels[side].records if r['requested']==nodes),None)
+        if record:self.graph_select(side,record)
 
     def highlight_comparison(self, a, b, result):
         from PySide6.QtWidgets import QTextEdit
@@ -681,7 +725,7 @@ class Window(QMainWindow):
             game, profile, limit, pv, start, maximum, provenance, kind = self.queue.pop(0)
             try:
                 self.status.setText('Supplementary analysis: ' + profile.name)
-                self.analysis.start(game, profile, limit, pv, provenance, start, maximum, kind=kind)
+                self.analysis.start(game, profile, limit, pv, provenance, start, maximum, kind=kind,silence_timeout_ms=self.silence_timeout.value()*1000)
             except (ValueError, OSError) as exc:
                 self.analysis_error(str(exc))
         else:
@@ -738,6 +782,7 @@ class Window(QMainWindow):
                         game.headers.update(White=state['profiles'][white]['name'], Black=state['profiles'][1-white]['name'],
                                             Result=item['result'], Event='Nocturne Battle', Seed=str(state['seed']),
                                             BattleConfig=json.dumps({k:v for k,v in state.items() if k != 'games'}))
+                        game._main_result = item['result']
                         texts.append(game.pgn())
                 Path(path).write_text('\n\n'.join(texts), encoding='utf-8')
             else:
@@ -747,7 +792,7 @@ class Window(QMainWindow):
             self.error(str(exc))
 
     def save_settings(self):
-        self.db.put('workspace', dict(geometry=bytes(self.saveGeometry().toHex()).decode(), workspace=self.workspace.currentIndex(), splitter=self.splitter.sizes(), mode=self.mode.currentText(),
+        self.db.put('workspace', dict(silence_timeout=self.silence_timeout.value(), geometry=bytes(self.saveGeometry().toHex()).decode(), workspace=self.workspace.currentIndex(), splitter=self.splitter.sizes(), mode=self.mode.currentText(),
             budgets=[x.text() for x in self.budgets], engines=[x.currentIndex() for x in self.engines],
             book=self.book.text(), pairs=self.pairs.value(), play_pv=self.play_pv.value(),
             checkpoint=self.checkpoint.text(), maximum=self.maximum.text(), seed=self.seed.value(),
@@ -759,6 +804,7 @@ class Window(QMainWindow):
             return
         if state.get('geometry'): self.restoreGeometry(bytes.fromhex(state['geometry']))
         self.workspace.setCurrentIndex(state.get('workspace',0))
+        self.silence_timeout.setValue(state.get('silence_timeout',120))
         self.splitter.setSizes(state['splitter'])
         self.mode.setCurrentText(state['mode'])
         for control, value in zip(self.budgets, state['budgets']):
