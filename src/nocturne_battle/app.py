@@ -599,6 +599,8 @@ class Window(QMainWindow):
     def adjudicate_game(self):
         if not self.tournament.game or self.tournament.game.outcome:
             self.error('There is no unfinished current game to adjudicate.'); return
+        was_active = self.tournament.active
+        self.tournament.pause()
         dialog = QDialog(self); dialog.setWindowTitle('Adjudicate current game')
         layout = QVBoxLayout(dialog); form = QFormLayout(); layout.addLayout(form)
         choice = QComboBox(); choice.addItems(['Use both engines’ evaluations', 'Draw', 'White wins', 'Black wins'])
@@ -606,18 +608,20 @@ class Window(QMainWindow):
         draw = QDoubleSpinBox(); draw.setRange(0, 10); draw.setValue(0.5); draw.setSuffix(' pawns')
         win = QDoubleSpinBox(); win.setRange(0.01, 100); win.setValue(2.0); win.setSuffix(' pawns')
         form.addRow('Draw: both within ±', draw); form.addRow('Win: both favor same side by at least', win)
-        note = QLabel('Uses each engine’s latest completed playing search from the last two plies, normalized to White’s perspective. If scores are missing or disagree, the game continues. Explicit results override the evaluations. Applies to the current game; the match then continues.')
+        note = QLabel('The match is paused while you choose. Uses each engine’s latest completed playing search from the last two plies, normalized to White’s perspective. If scores are missing or disagree, the game continues. Explicit results override the evaluations. Applies to the current game; the match then continues.')
         note.setWordWrap(True); layout.addWidget(note)
         controls = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         controls.button(QDialogButtonBox.StandardButton.Ok).setText('Adjudicate game')
         controls.accepted.connect(dialog.accept); controls.rejected.connect(dialog.reject); layout.addWidget(controls)
-        if dialog.exec() != QDialog.DialogCode.Accepted:return
         try:
+            if dialog.exec() != QDialog.DialogCode.Accepted:return
             if draw.value() >= win.value() and choice.currentIndex() == 0:
                 raise ValueError('The win threshold must be greater than the draw threshold.')
             self.tournament.adjudicate([None, '1/2-1/2', '1-0', '0-1'][choice.currentIndex()],
                 draw_cp=round(draw.value()*100), win_cp=round(win.value()*100))
         except ValueError as exc:self.error(str(exc))
+        finally:
+            if was_active:self.tournament.resume()
 
     def match_changed(self):
         state = self.tournament.state

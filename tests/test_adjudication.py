@@ -60,6 +60,23 @@ def test_no_agreement_does_not_cancel_current_search(qtbot,db,profile):
     t.pause();t.search.close()
 
 
+def test_adjudication_dialog_freezes_game_and_cancel_resumes(qtbot,db,profile,monkeypatch):
+    from nocturne_battle.app import QDialog
+    p=replace(profile,arguments=profile.arguments+['--wait'])
+    db.put('profiles',[p.__dict__]);w=Window(db);qtbot.addWidget(w)
+    w.tournament.create([p]*2,[Limit('nodes',1000)]*2,schedule([Game().initial_fen],1))
+    w.resume();sid=w.tournament.search.context['id']
+    def cancel(dialog):
+        assert not w.tournament.active and w.tournament.search.context is None
+        assert w.tournament.game.cursor==0
+        return QDialog.DialogCode.Rejected
+    monkeypatch.setattr(QDialog,'exec',cancel)
+    w.adjudicate_game()
+    assert w.tournament.active and w.tournament.search.context['id']!=sid
+    assert w.tournament.game.cursor==0
+    w.close()
+
+
 def test_click_move_opens_final_thinking_below_first_checkpoint(qtbot,db,profile):
     db.put('profiles',[profile.__dict__]);w=Window(db);qtbot.addWidget(w)
     w.tournament.create([profile]*2,[Limit('nodes',1000)]*2,schedule([Game().initial_fen],1),3)

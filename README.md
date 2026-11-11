@@ -150,6 +150,8 @@ centipawn scores from the last two completed plies; scores are converted to
 White's perspective. Missing, bound, mate, stale or disagreeing scores do not
 trigger evaluation adjudication. Explicit manual results can always end a live
 or paused unfinished current game. The remaining match schedule continues.
+The dialog pauses play so the game cannot advance while you choose; closing it
+restores the previous running or paused state.
 
 By default, **Automatic draw by evaluation agreement** draws after move 50 when
 both engines remain within ±0.20 pawns for ten consecutive plies (five full moves).
