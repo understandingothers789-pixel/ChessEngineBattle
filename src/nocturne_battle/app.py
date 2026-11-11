@@ -50,7 +50,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Nocturne Battle 0.3.7 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.3.8 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -70,7 +70,7 @@ class Window(QMainWindow):
         root = QWidget()
         self.setCentralWidget(root)
         outer = QVBoxLayout(root)
-        title = QLabel('NOCTURNE  /  ENGINE MATCH & ANALYSIS')
+        title = QLabel('CHESS ENGINE BATTLE  /  MATCH & ANALYSIS')
         title.setStyleSheet('font-size: 22px; padding: 12px;')
         outer.addWidget(title)
         quick = QHBoxLayout()
@@ -390,7 +390,7 @@ class Window(QMainWindow):
 
     def error(self, text):
         self.status.setText(text)
-        QMessageBox.warning(self, 'Nocturne Battle', text)
+        QMessageBox.warning(self, 'Chess Engine Battle', text)
 
     def populate_profiles(self):
         if hasattr(self,'welcome'):self.welcome.setVisible(not self.profiles)
@@ -1003,7 +1003,7 @@ class Window(QMainWindow):
                             game.play(game.board.parse_uci(uci))
                         white = 0 if item['a_white'] else 1
                         game.headers.update(White=state['profiles'][white]['name'], Black=state['profiles'][1-white]['name'],
-                                            Result=item['result'], Event='Nocturne Battle', Seed=str(state['seed']),
+                                            Result=item['result'], Event='Chess Engine Battle', Seed=str(state['seed']),
                                             BattleConfig=json.dumps({k:v for k,v in state.items() if k != 'games'}))
                         if item.get('termination'):game.headers['Termination']=item['termination']
                         if all(limit['mode']=='clock' for limit in state['limits']):
@@ -1071,13 +1071,17 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName('NocturneBattle')
     app.setOrganizationName('Nocturne')
-    app.setStyleSheet(stylesheet())
+    # Keep the established library location through the product rename.
     directory = Path(QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppLocalDataLocation))
+    app.setApplicationName('ChessEngineBattle')
+    app.setApplicationDisplayName('Chess Engine Battle')
+    app.setOrganizationName('Chess Engine Battle')
+    app.setStyleSheet(stylesheet())
     from PySide6.QtCore import QLockFile
     directory.mkdir(parents=True, exist_ok=True)
     lock = QLockFile(str(directory / 'battle.lock'))
     if not lock.tryLock(0):
-        print('Nocturne Battle is already using this library.', file=sys.stderr)
+        print('Chess Engine Battle is already using this library.', file=sys.stderr)
         return 1
     window = Window(Database(directory / 'battle.sqlite'))
     window.show()

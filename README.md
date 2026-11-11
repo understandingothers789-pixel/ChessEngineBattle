@@ -1,9 +1,21 @@
-# Nocturne Engine Match & Analysis Studio
+# Chess Engine Battle
 
 A standalone Python 3.12 / PySide6 desktop application built on the latest audited
 Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
+
+New builds use **main**. Each entry below records the version, Windows download,
+and brief change notes; previous downloads remain available. See
+[CHANGELOG.md](CHANGELOG.md) for the concise version history.
+
+Version **0.3.8** is being validated: renamed to **Chess Engine Battle**, with
+`ChessEngineBattle.exe`, and consolidated the latest code and build notes onto
+main. Its download will be added after Windows packaging and startup checks pass.
+
+Historical downloads through 0.3.7 use the previous executable name
+`NocturneBattle.exe`. The existing library location is retained across the rename
+so your saved engines, settings and games remain available.
 
 - [Download Windows 0.3.7 — live thinking and adjudication](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43122316818/artifacts/13901312381) — application only, approximately 51.2 MiB. Source `57b22dd1aa195b4b47c271b0b6f25b9c2be3d17a`. 104 Windows tests passed, 1 optional real-engine test skipped; packaging and executable startup/render smoke passed. Unsigned; interactive Windows security acceptance remains unverified. Sign in to GitHub; Actions artifacts expire.
 
@@ -17,19 +29,19 @@ See [0.3.7 behavior and validation](docs/0.3.7_REPORT.md).
 
 - [Download Windows 0.3.1 compatibility rebuild](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42555590909/artifacts/13647331434) — exact 0.3.1 application baseline, build commit `04babae0425d64c29c20fb6de9f3834520e41a80`. 67 tests passed, 1 optional real-engine test skipped; Windows packaging and startup/render smoke passed. Later tooltip/performance changes are not included. Unsigned; Smart App Control acceptance is unverified. Sign in to GitHub; Actions artifacts expire.
 
-- [Download Nocturne Battle 0.3.3 for Windows — fresh rebuild](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42554565572/artifacts/13646691949) — source `e556bee3aee89460b31672c0becbfb42e5cc95fb`, application code unchanged. Windows tests, packaging and executable startup/render smoke passed. Unsigned: this rebuild does not establish Smart App Control or antivirus approval. Sign in to GitHub; Actions artifacts expire.
+- [Download Chess Engine Battle 0.3.3 for Windows — fresh rebuild](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42554565572/artifacts/13646691949) — source `e556bee3aee89460b31672c0becbfb42e5cc95fb`, application code unchanged. Windows tests, packaging and executable startup/render smoke passed. Unsigned: this rebuild does not establish Smart App Control or antivirus approval. Sign in to GitHub; Actions artifacts expire.
 
-- [Download Nocturne Battle 0.3.3 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42554102650/artifacts/13646317623) — faster repeated file checks and live updates; fixes game selection, preview pins and experiment isolation. Source `dcaa93d094f5039699e35b19de9f73b625c828ee`. 73 tests passed, 1 optional real-engine test skipped; Windows packaging and startup/render smoke passed. Unsigned; Smart App Control approval is unverified. Sign in to GitHub; Actions artifacts expire. See [performance and bug report](https://github.com/understandingothers789-pixel/ChessEngineBattle/blob/development/0.3.0/docs/0.3.3_REPORT.md).
+- [Download Chess Engine Battle 0.3.3 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42554102650/artifacts/13646317623) — faster repeated file checks and live updates; fixes game selection, preview pins and experiment isolation. Source `dcaa93d094f5039699e35b19de9f73b625c828ee`. 73 tests passed, 1 optional real-engine test skipped; Windows packaging and startup/render smoke passed. Unsigned; Smart App Control approval is unverified. Sign in to GitHub; Actions artifacts expire. See [performance and bug report](https://github.com/understandingothers789-pixel/ChessEngineBattle/blob/development/0.3.0/docs/0.3.3_REPORT.md).
 
-- [Download Nocturne Battle 0.3.2 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42553458016/artifacts/13645959659) — tooltips for controls, engine options, tables and board views. Source `a9f5ba575b56f30f244a3ec54e7d36e79a12e111`. 69 tests passed, 1 optional real-engine test skipped; Windows packaging and executable startup/render smoke passed. Unsigned; Smart App Control approval remains unverified. Sign in to GitHub; Actions artifacts expire.
+- [Download Chess Engine Battle 0.3.2 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42553458016/artifacts/13645959659) — tooltips for controls, engine options, tables and board views. Source `a9f5ba575b56f30f244a3ec54e7d36e79a12e111`. 69 tests passed, 1 optional real-engine test skipped; Windows packaging and executable startup/render smoke passed. Unsigned; Smart App Control approval remains unverified. Sign in to GitHub; Actions artifacts expire.
 
-- [Download Nocturne Battle 0.3.1 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42550437046/artifacts/13645695022) — rebuilt version 3 with direct A/B engine file pickers and simpler setup; source `ecc14156bf09362cd81dc68f7c61aa9e5b0c05a1`. Windows tests and packaged startup/render smoke passed (67 passing, 1 optional real-engine test skipped). Unsigned: Smart App Control may still block it. Sign in to GitHub; Actions artifacts expire.
+- [Download Chess Engine Battle 0.3.1 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42550437046/artifacts/13645695022) — rebuilt version 3 with direct A/B engine file pickers and simpler setup; source `ecc14156bf09362cd81dc68f7c61aa9e5b0c05a1`. Windows tests and packaged startup/render smoke passed (67 passing, 1 optional real-engine test skipped). Unsigned: Smart App Control may still block it. Sign in to GitHub; Actions artifacts expire.
 
-- [Download Nocturne Battle 0.3.0 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42544005839/artifacts/13642687367) — source `4e077cdc6e1ac9670821990ebec08e3889941f11`; Windows tests, PyInstaller and packaged offscreen startup/render smoke passed. Real-engine and interactive Windows desktop testing remain unverified. Sign in to GitHub; Actions artifacts expire.
+- [Download Chess Engine Battle 0.3.0 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42544005839/artifacts/13642687367) — source `4e077cdc6e1ac9670821990ebec08e3889941f11`; Windows tests, PyInstaller and packaged offscreen startup/render smoke passed. Real-engine and interactive Windows desktop testing remain unverified. Sign in to GitHub; Actions artifacts expire.
 
-- [Download Nocturne Battle 0.2.0 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42541337137/artifacts/13641622102) — development build from `d7b2250`; Windows tests, packaging and packaged offscreen startup/render smoke passed. Interactive desktop and real-engine testing remain outstanding. Sign in to GitHub to download; workflow artifacts expire.
+- [Download Chess Engine Battle 0.2.0 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42541337137/artifacts/13641622102) — development build from `d7b2250`; Windows tests, packaging and packaged offscreen startup/render smoke passed. Interactive desktop and real-engine testing remain outstanding. Sign in to GitHub to download; workflow artifacts expire.
 
-- [Download Nocturne Battle 0.1.0 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42535154560/artifacts/13639565345) — successful GitHub Actions build. Sign in to GitHub to download; workflow artifacts expire. Extract the ZIP and run NocturneBattle.exe.
+- [Download Chess Engine Battle 0.1.0 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42535154560/artifacts/13639565345) — successful GitHub Actions build. Sign in to GitHub to download; workflow artifacts expire. Extract the ZIP and run NocturneBattle.exe.
 
 ## Version 0.3.5 — opening rematches and increment clocks
 
@@ -103,12 +115,12 @@ sample supports it. See [0.2.0 report](docs/0.2.0_REPORT.md) for limits and vali
 ```powershell
 py -3.12 -m venv .venv
 .\.venv\Scripts\python -m pip install -e ".[dev]"
-.\.venv\Scripts\nocturne-battle
+.\.venv\Scripts\chess-engine-battle
 ```
 
 Git must be installed: the Nocturne dependency is pinned to audited commit
 `5f9c69582039f42b743f2d12a4a28c188339e55d`. On Linux/macOS use
-`.venv/bin/python` and `.venv/bin/nocturne-battle` instead. The original Nocturne
+`.venv/bin/python` and `.venv/bin/chess-engine-battle` instead. The original Nocturne
 application and its database are untouched. Use this existing isolated checkout;
 no Git worktree is required.
 
@@ -214,10 +226,10 @@ can produce different searches even with the same recorded configuration.
 
 ```powershell
 .\.venv\Scripts\python -m pytest -q
-.\.venv\Scripts\pyinstaller --clean --noconfirm NocturneBattle.spec
+.\.venv\Scripts\pyinstaller --clean --noconfirm ChessEngineBattle.spec
 ```
 
-Build on Windows to produce `dist\NocturneBattle\NocturneBattle.exe`. Keep the
+Build on Windows to produce `dist\ChessEngineBattle\ChessEngineBattle.exe`. Keep the
 whole directory, including Qt libraries, assets and licenses. The manually
 runnable Windows GitHub Actions workflow runs tests and produces a build artifact.
 The Windows 0.1.0 artifact above was produced by GitHub Actions; it has not been independently run on a Windows desktop. The mock UCI fixture is test-only and

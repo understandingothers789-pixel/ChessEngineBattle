@@ -1,1 +1,1 @@
-"""Nocturne Engine Match & Analysis Studio."""
+"""Chess Engine Battle — engine matches and analysis."""

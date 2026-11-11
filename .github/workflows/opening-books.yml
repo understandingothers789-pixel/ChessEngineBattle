@@ -1,9 +1,6 @@
 name: Separate opening book download
 on:
   workflow_dispatch:
-  push:
-    branches: [development/0.3.7]
-    paths: [.github/workflows/opening-books.yml]
 jobs:
   books:
     runs-on: ubuntu-latest
@@ -11,5 +8,5 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/upload-artifact@v4
         with:
-          name: Nocturne-Opening-Books
+          name: ChessEngineBattle-Opening-Books
           path: src/nocturne_battle/books/

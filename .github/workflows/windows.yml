@@ -2,7 +2,7 @@ name: Windows desktop validation
 on:
   workflow_dispatch:
   push:
-    branches: [main, development/0.2.0, development/0.3.0, compatibility/0.3.1-rebuild, development/0.3.4, development/0.3.5, development/0.3.6, development/0.3.7]
+    branches: [main]
   pull_request:
 jobs:
   desktop:
@@ -16,19 +16,19 @@ jobs:
       - run: python -m pytest -q
         env:
           QT_QPA_PLATFORM: offscreen
-      - run: pyinstaller --clean --noconfirm NocturneBattle.spec
+      - run: pyinstaller --clean --noconfirm ChessEngineBattle.spec
       - name: Packaged Windows startup and render smoke test
-        run: python -c "import subprocess; subprocess.run(['dist/NocturneBattle/NocturneBattle.exe', '--smoke-test'], timeout=45, check=True)"
+        run: python -c "import subprocess; subprocess.run(['dist/ChessEngineBattle/ChessEngineBattle.exe', '--smoke-test'], timeout=45, check=True)"
         env:
           QT_QPA_PLATFORM: offscreen
       - name: Record build dependencies and signature status
         shell: pwsh
         run: |
-          python --version | Out-File dist/NocturneBattle/BUILD-INFO.txt
-          python -m pip freeze | Out-File -Append dist/NocturneBattle/BUILD-INFO.txt
-          Get-AuthenticodeSignature dist/NocturneBattle/NocturneBattle.exe | Select-Object Status, StatusMessage | Format-List | Out-File -Append dist/NocturneBattle/BUILD-INFO.txt
-          Get-FileHash dist/NocturneBattle/NocturneBattle.exe -Algorithm SHA256 | Format-List | Out-File -Append dist/NocturneBattle/BUILD-INFO.txt
+          python --version | Out-File dist/ChessEngineBattle/BUILD-INFO.txt
+          python -m pip freeze | Out-File -Append dist/ChessEngineBattle/BUILD-INFO.txt
+          Get-AuthenticodeSignature dist/ChessEngineBattle/ChessEngineBattle.exe | Select-Object Status, StatusMessage | Format-List | Out-File -Append dist/ChessEngineBattle/BUILD-INFO.txt
+          Get-FileHash dist/ChessEngineBattle/ChessEngineBattle.exe -Algorithm SHA256 | Format-List | Out-File -Append dist/ChessEngineBattle/BUILD-INFO.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: NocturneBattle-0.3.7-Windows
-          path: dist/NocturneBattle/
+          name: ChessEngineBattle-0.3.8-Windows
+          path: dist/ChessEngineBattle/
