@@ -5,8 +5,11 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
-Version 0.3.7 is in validation; its Windows download will be listed here after
-the build succeeds. Opening books are now distributed separately from the app.
+- [Download Windows 0.3.7 — live thinking and adjudication](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43122316818/artifacts/13901312381) — application only, approximately 51.2 MiB. Source `57b22dd1aa195b4b47c271b0b6f25b9c2be3d17a`. 104 Windows tests passed, 1 optional real-engine test skipped; packaging and executable startup/render smoke passed. Unsigned; interactive Windows security acceptance remains unverified. Sign in to GitHub; Actions artifacts expire.
+
+- [Download separate opening books](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43121987151/artifacts/13900233891) — approximately 149 KiB compressed, three CC0 EPD suites and license/source notes. Extract once to a permanent folder and choose an EPD with Browse opening suite. These files are excluded from application downloads and future app updates. The separate book workflow runs only when explicitly requested or when its release workflow file changes. Sign in to GitHub; Actions artifacts expire.
+
+See [0.3.7 behavior and validation](docs/0.3.7_REPORT.md).
 
 - [Download Windows 0.3.5 — opening rematches and increment clocks](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42558691472/artifacts/13648666558) — full-book two-game setup, independent base-plus-increment clocks and live time displays. Source `aceb021db4f5bcaf24f5ff25ddf1653f44bf0ab7`. 87 tests passed, 1 optional real-engine test skipped; Windows packaging and startup/render smoke passed. Sign in to GitHub; Actions artifacts expire. Unsigned; interactive Windows/Smart App Control acceptance requires local testing.
 
