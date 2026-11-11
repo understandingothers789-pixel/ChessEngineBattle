@@ -75,7 +75,7 @@ Choose **Node Scaling Experiment** to test multiple node ratios using Engine A's
 profile and the book/pairs/seed from Match Setup. Build the conditions, then
 explicitly Start/Resume. Conditions execute sequentially with the same opening
 schedule, and remain separate in history and exports. Pause before opening a
-different condition. Playing MultiPV defaults to 1; supplementary jobs do not
+different condition. New matches use playing MultiPV 3; supplementary jobs do not
 choose moves. Confidence intervals use an exploratory opening-cluster bootstrap;
 insufficient or unbounded outcomes are shown explicitly.
 

@@ -213,8 +213,8 @@ class Window(QMainWindow):
             live_layout.addWidget(scroll, 1)
             self.live_panels.append(panel)
         self.live_preview_board = BoardWidget(); self.live_preview_board.interactive = False
-        self.live_preview_board.setMinimumSize(220, 220); self.live_preview_board.hide()
-        live_layout.addWidget(self.live_preview_board)
+        self.live_preview_board.setFixedSize(270, 270); self.live_preview_board.hide()
+        live_layout.addWidget(self.live_preview_board, 0, Qt.AlignmentFlag.AlignHCenter)
         self.tabs.addTab(live, 'Live Match')
         self.candidate_views = CandidateViews()
         self.candidate_views.inspect.connect(self.inspect_candidate)
@@ -319,6 +319,8 @@ class Window(QMainWindow):
         self.auto_draw.setChecked(True)
         self.auto_draw.setToolTip('After move 50, draw when both engines stay within ±0.20 pawns for 10 consecutive plies (5 full moves). Uses exact rank-1 scores from consecutive completed playing searches. Missing or non-exact scores reset the streak.')
         form.addRow(self.auto_draw)
+        rule_note = QLabel('After move 50 · both within ±0.20 pawns · 10 consecutive plies')
+        rule_note.setWordWrap(True); form.addRow(rule_note)
         self.checkpoint = QLineEdit('1000000')
         form.addRow('First checkpoint', self.checkpoint)
         self.summary = QLabel(); self.summary.setWordWrap(True)
@@ -676,7 +678,7 @@ class Window(QMainWindow):
         self.live_search_ids[side] = context['id']
         self.live_positions[side] = game.board.fen()
         name = self.tournament.state['profiles'][side]['name']
-        self.live_labels[side].setText(f'{name} · {"White" if game.board.turn == 1 else "Black"} · searching before ply {game.cursor+1}')
+        self.live_labels[side].setText(f'Engine {"AB"[side]} · {name} · {"White" if game.board.turn == 1 else "Black"} · searching before ply {game.cursor+1}')
 
     def live_info(self, info):
         game = self.tournament.game
@@ -688,7 +690,7 @@ class Window(QMainWindow):
         context = self.tournament.search.context
         if context and self.live_search_ids[side] != context['id']:self.live_started(context)
         name = self.tournament.state['profiles'][side]['name']
-        self.live_labels[side].setText(f"{name} · {'White' if game.board.turn == 1 else 'Black'} · thinking before ply {game.cursor+1} · depth {info.get('depth',0)} · {info.get('nodes',0):,} nodes")
+        self.live_labels[side].setText(f"Engine {'AB'[side]} · {name} · {'White' if game.board.turn == 1 else 'Black'} · latest search before ply {game.cursor+1} · depth {info.get('depth',0)} · {info.get('nodes',0):,} nodes")
         if True:
             self.live_panels[side].set_multipv(self.tournament.state['multipv'])
             self.live_panels[side].update_line(info, game.board.turn)
