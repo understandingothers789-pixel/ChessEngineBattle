@@ -12,6 +12,7 @@ from nocturne.gui.engine import EngineController
 
 from .history import Checkpoints
 from .model import Profile, Limit, executable_hash, position_identity
+from .adjudication import DEFAULT_RULE, white_cp, agreement
 
 
 class Search(QObject):
@@ -140,6 +141,9 @@ class Search(QObject):
             self.watchdog.stop()
             self.flush_render()
             context, self.context = self.context, None
+            if kind == 'result':
+                # Persist final ranks even when a short search never reaches a checkpoint.
+                data['lines'] = dict(self.collector.lines)
             complete = all(rank in self.collector.lines for rank in range(1, self.required+1))
             status = ('completed' if complete else 'completed-incomplete') if kind == 'result' else 'failed'
             if kind == 'result' and context['kind'] == 'independent':
@@ -216,7 +220,8 @@ class Tournament(QObject):
         if any(limit.mode == 'clock' for limit in limits) and not all(limit.mode == 'clock' for limit in limits):raise ValueError('Both engines must use clock mode together')
         self.state = dict(id=str(uuid4()), profiles=[asdict(p) for p in profiles],
                           limits=[asdict(l) for l in limits], games=games, index=0,
-                          multipv=multipv, checkpoint=checkpoint, maximum=maximum, seed=seed)
+                          multipv=multipv, checkpoint=checkpoint, maximum=maximum, seed=seed,
+                          draw_rule=dict(DEFAULT_RULE))
         self.restore_game()
         self.save()
 
@@ -276,6 +281,7 @@ class Tournament(QObject):
             item['termination'] = 'Maximum game length'
         if self.game.outcome:
             item['result'] = self.game.outcome.result
+            item.setdefault('termination', self.game.outcome.reason)
             self.state['index'] += 1
             self.restore_game()
             self.save()
@@ -312,6 +318,8 @@ class Tournament(QObject):
                 if flag is not None:self.forfeit(flag);return
                 timing=dict(clock_before=before,clock_after=self.clock.payload(),elapsed_ns=elapsed)
             ply = self.game.cursor + 1
+            turn = self.game.board.turn
+            fullmove = self.game.board.native.fullmove_number
             link = dict(game=self.game.id, ply=ply, position=context['position'],
                         profile=context['profile'], search_run_id=context['id'], limit=context['limit'],
                         bestmove=data['move'], played_move=data['move'], status=context['status'],**timing)
@@ -319,10 +327,47 @@ class Tournament(QObject):
             item = self.state['games'][self.state['index']]
             item['moves'].append(data['move'])
             item.setdefault('move_searches', {})[str(ply)] = link
+            side = '0' if (turn == 1) == item['a_white'] else '1'
+            line = data.get('lines', {}).get(1, data.get('lines', {}).get('1'))
+            item.setdefault('evaluations', {})[side] = dict(
+                ply=ply, white_cp=white_cp(line, turn), search_run_id=context['id'])
+            rule = self.state.get('draw_rule', DEFAULT_RULE)
+            qualifies = (rule['enabled'] and fullmove > rule['after_move'] and
+                         agreement(item, ply, rule['draw_cp']) == '1/2-1/2')
+            item['draw_streak'] = item.get('draw_streak', 0) + 1 if qualifies else 0
+            if not self.game.outcome and item['draw_streak'] >= rule['consecutive_plies']:
+                self.adjudicate('1/2-1/2',
+                    f"Draw by evaluation agreement (both engines within ±{rule['draw_cp']/100:g} pawns "
+                    f"for {rule['consecutive_plies']} consecutive plies after move {rule['after_move']})")
+                return
             self.save()
             QTimer.singleShot(0, self.next)
         except (ValueError, TypeError) as exc:
             self.error(str(exc))
+
+    def adjudicate(self, result=None, reason=None, draw_cp=50, win_cp=200):
+        if not self.state or not self.game or self.game.outcome:
+            raise ValueError('There is no unfinished current game to adjudicate.')
+        item = self.state['games'][self.state['index']]
+        if result is None:
+            result = agreement(item, self.game.cursor, draw_cp, win_cp)
+            if result is None:
+                raise ValueError('No evaluation agreement: both engines need exact scores from the last two completed plies, within the draw threshold or favoring the same side at the win threshold.')
+            reason = (f"Draw by evaluation agreement (both engines within ±{draw_cp/100:g} pawns)"
+                      if result == '1/2-1/2' else
+                      f"Win by evaluation agreement (both engines favor the winner by at least {win_cp/100:g} pawns)")
+        if result not in ('1/2-1/2', '1-0', '0-1'):
+            raise ValueError('Invalid adjudicated result')
+        self.clock_timer.stop()
+        if self.clock:self.clock.stop()
+        self.search.cancel()
+        self.game.declared = Outcome(result, reason or 'Manual adjudication')
+        item['result'] = result
+        item['termination'] = self.game.declared.reason
+        item['adjudication'] = dict(ply=self.game.cursor, evaluations=dict(item.get('evaluations', {})))
+        self.save()
+        self.clock_changed.emit()
+        if self.active:QTimer.singleShot(0, self.next)
 
     def pause(self):
         self.active = False

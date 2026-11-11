@@ -5,6 +5,7 @@ import chess
 board = chess.Board()
 multipv = 1
 incomplete = '--incomplete' in sys.argv
+score_override = next((int(a.split('=')[1]) for a in sys.argv if a.startswith('--score-cp=')), None)
 for raw in sys.stdin:
     line = raw.strip()
     if line == 'uci':
@@ -52,7 +53,8 @@ for raw in sys.stdin:
                     reply = replies[0]
                     pv.append(reply.uci())
                     after.push(reply)
-                print(f'info depth 12 seldepth 18 multipv {rank} score cp {25-rank} nodes {nodes} nps 2000000 time 100 pv {" ".join(pv)}', flush=True)
+                score = 25-rank if score_override is None else score_override
+                print(f'info depth 12 seldepth 18 multipv {rank} score cp {score} nodes {nodes} nps 2000000 time 100 pv {" ".join(pv)}', flush=True)
         print('bestmove ' + (moves[0].uci() if moves else '0000'), flush=True)
     elif line == 'stop':
         moves = sorted(board.legal_moves, key=lambda m: m.uci())

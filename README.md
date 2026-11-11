@@ -5,6 +5,9 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+Version 0.3.7 is in validation; its Windows download will be listed here after
+the build succeeds. Opening books are now distributed separately from the app.
+
 - [Download Windows 0.3.5 — opening rematches and increment clocks](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42558691472/artifacts/13648666558) — full-book two-game setup, independent base-plus-increment clocks and live time displays. Source `aceb021db4f5bcaf24f5ff25ddf1653f44bf0ab7`. 87 tests passed, 1 optional real-engine test skipped; Windows packaging and startup/render smoke passed. Sign in to GitHub; Actions artifacts expire. Unsigned; interactive Windows/Smart App Control acceptance requires local testing.
 
 - [Download Windows 0.3.4 — combined features on the working 0.3.1 build baseline](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/42556560195/artifacts/13648205211) — includes the 0.3.2 tooltips and 0.3.3 speed/bug fixes. Source `06b4835a1af3a70c5d03dfd7809ac1bef0aa6940`. 73 tests passed, 1 optional real-engine test skipped; Windows packaging/startup smoke passed. The 0.3.1 packaging specification is retained; the executable is new and unsigned, so Smart App Control acceptance is unverified. Sign in to GitHub; Actions artifacts expire.
@@ -121,6 +124,7 @@ no Git worktree is required.
    A paused/interrupted move restarts its search; previous observations retain
    their interrupted status. Do not run multiple copies on the same database.
 
+New matches default to playing MultiPV 3 (saved settings are retained).
 Playing MultiPV >1 can affect strength. Supplementary analysis is a separate job
 and never chooses tournament moves. Engines must advertise MultiPV for counts
 above one; unavailable ranks are never fabricated. NNUE paths explicitly set via
@@ -129,6 +133,35 @@ external networks selected internally by engines are not discoverable through
 standard UCI; set those options explicitly for reproducible cache identity.
 
 ## Inspect what both engines thought
+
+Starting or resuming a match opens **Live Match** automatically on the right.
+Each engine retains its latest playing-search candidate lines, labeled with the
+engine, color, ply, depth and nodes. Hover PV moves to preview on a separate board
+using that search's original position. The two engines normally search alternating
+positions, so these are not simultaneous analyses of the same position.
+Click a played move to open its exact recorded final search in Search comparison;
+short searches retain final MultiPV lines even below the first checkpoint.
+
+**Adjudicate game…** in the top bar offers Draw, White wins, Black wins, and
+evaluation agreement. Agreement defaults to a draw when both scores are within
+±0.50 pawns, or a win when both favor the same color by at least 2.00 pawns.
+The thresholds can be changed in the dialog. Both engines must have exact rank-1
+centipawn scores from the last two completed plies; scores are converted to
+White's perspective. Missing, bound, mate, stale or disagreeing scores do not
+trigger evaluation adjudication. Explicit manual results can always end a live
+or paused unfinished current game. The remaining match schedule continues.
+
+By default, **Automatic draw by evaluation agreement** draws after move 50 when
+both engines remain within ±0.20 pawns for ten consecutive plies (five full moves).
+Only searches starting at fullmove 51 or later count. Each completed ply checks
+the latest pair of engine scores; any failed check resets the streak. The setting
+is chosen in Match Setup for each new match. Streaks survive pause/restart; result,
+reason, scores and source search IDs are stored and the reason is exported to PGN.
+
+Download the opening-book archive once, extract it somewhere permanent, and use
+**Browse opening suite…** to select an EPD file. Recent paths persist across app
+updates. Application builds no longer contain books. Stockfish remains a local
+UCI executable you select with **Open engine file for A/B…**.
 
 Select a game, navigate using arrows or the keyboard, then **Compare This
 Position**. Cached results must match exact FEN, repetition path, executable hash,
