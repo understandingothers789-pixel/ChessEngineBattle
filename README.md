@@ -5,6 +5,8 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+- [Download Chess Engine Battle 0.5.9 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43317072760/artifacts/13989496217) — recorded node counts in review and highlighted main-line divergence markers. Windows tests and packaged startup check passed. Extract the entire ZIP. GitHub sign-in required; Actions downloads expire.
+
 - [Download Chess Engine Battle 0.5.8 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43314656322/artifacts/13987961180) — clearer paused status, immediate reviewed-clock updates and fewer repeated graph database reads. Windows tests and packaged startup check passed. Extract the whole ZIP. GitHub sign-in required; Actions downloads expire.
 
 - [Download Chess Engine Battle 0.5.7 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43313400809/artifacts/13987291457) — yellow scorecard clocks now show the selected review move and remain live when following the current move. Windows tests and packaged startup check passed. Extract the entire ZIP. GitHub sign-in required; Actions downloads expire.
