@@ -5,6 +5,8 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+- [Download Chess Engine Battle 0.4.0 for Windows — compact UI and saved tournaments](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43128956101/artifacts/13905175104) — shorter variation previews with a Full variations option, more room for the board, light slate/teal styling and clearer match status. Save match writes a portable tournament with its recorded analysis; Saved matches reopens previous tournaments and match files for per-move/depth review. 111 Windows tests passed, 1 optional real-engine test skipped; packaging and startup/render checks passed. [Source: a3bccb5](https://github.com/understandingothers789-pixel/ChessEngineBattle/commit/a3bccb598f7e0a199bd1f7d8c163e85eba25fd81). Unsigned; GitHub sign-in required; Actions downloads expire.
+
 ### 0.4.0 — compact match view and portable saved tournaments
 
 Variation previews show **3 full moves** by default. Enable **Full variations**
@@ -24,7 +26,6 @@ setup and start a new match. Local library matches remain resumable.
 The file contains the analysis that was actually recorded; it cannot reconstruct
 missing history from older versions. PGN/CSV exports remain available, but use
 Save match for a complete, reopenable tournament with its engine analysis.
-The 0.4.0 Windows download will be added after validation succeeds.
 
 
 - [Download Chess Engine Battle 0.3.9 for Windows — improved UI and saved move analysis](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43125865269/artifacts/13902667576) — board/moves on the left, analysis on the upper right; click moves to review final MultiPV lines and saved depths; top-bar Pause/Resume, separate setup window, floating previews and clearer help. Saved analysis survives reopening. 107 Windows tests passed, 1 optional real-engine test skipped; packaging and startup/render checks passed. [Source: 428fbea](https://github.com/understandingothers789-pixel/ChessEngineBattle/commit/428fbea99745945ec8472f5ef1409f5b8766f9bf). Unsigned; GitHub sign-in required; Actions downloads expire.
