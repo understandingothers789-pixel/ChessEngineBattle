@@ -5,6 +5,8 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+- [Download Chess Engine Battle 0.3.9 for Windows — improved UI and saved move analysis](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43125865269/artifacts/13902667576) — board/moves on the left, analysis on the upper right; click moves to review final MultiPV lines and saved depths; top-bar Pause/Resume, separate setup window, floating previews and clearer help. Saved analysis survives reopening. 107 Windows tests passed, 1 optional real-engine test skipped; packaging and startup/render checks passed. [Source: 428fbea](https://github.com/understandingothers789-pixel/ChessEngineBattle/commit/428fbea99745945ec8472f5ef1409f5b8766f9bf). Unsigned; GitHub sign-in required; Actions downloads expire.
+
 ### 0.3.9 — clearer match workspace and saved variations
 
 Board and moves stay on the left; analysis stays on the upper right. **Match
@@ -22,7 +24,6 @@ checkpoints were recorded at the time; missing depth history cannot be recovered
 Book moves have no engine search. Analysis lives with your games in `battle.sqlite`
 in the existing library folder described under Persistence and exports.
 
-The Windows 0.3.9 download will be added after validation succeeds.
 
 
 New builds use **main**. Each entry below records the version, Windows download,
