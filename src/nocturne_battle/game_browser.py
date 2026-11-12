@@ -30,7 +30,7 @@ class GameModel(QAbstractTableModel):
             g=state['games'][row]
             white = 0 if g['a_white'] else 1
             values = [row+1,g['pair']+1,state['profiles'][white]['name'],state['profiles'][1-white]['name'],g['result'],len(g['moves']),g.get('opening_name',''),
-                      'Completed' if g['result'] != '*' else 'Running' if active and row == state['index'] else 'Paused / pending']
+                      (g.get('termination') or 'Completed · reason unavailable') if g['result'] != '*' else 'Running' if active and row == state['index'] else 'Paused / pending']
             if values != self.rows[row]:
                 self.rows[row] = values
                 self.dataChanged.emit(self.index(row,0),self.index(row,7))

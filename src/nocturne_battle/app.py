@@ -982,7 +982,10 @@ class Window(QMainWindow):
             if not 0<=row<len(state['games']):continue
             item=state['games'][row]
             status={'1-0':'White won','0-1':'Black won','1/2-1/2':'Draw'}.get(item['result'],'Playing' if row==state['index'] and self.tournament.active else ('Paused' if row==state['index'] else 'Pending'))
+            if item['result'] != '*':
+                status += ' · ' + (item.get('termination') or 'Reason unavailable')
             self.game_selector.setItemText(row,f"Game {row+1} · Pair {item['pair']+1} · {status}")
+            self.game_selector.setItemData(row, status, Qt.ItemDataRole.ToolTipRole)
         self.game_selector.blockSignals(False)
         if self.follow_live:
             self.load_game(index)

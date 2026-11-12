@@ -5,6 +5,8 @@ New builds use the main branch; version numbers distinguish downloads.
 
 ## 0.5.3
 
+- Show the recorded draw or game-ending reason in the game picker and games table.
+
 - Show each engine’s reported tablebase hits during live and recorded searches.
 
 - Choose the move when automatic draw counting starts; the default is move 30.
