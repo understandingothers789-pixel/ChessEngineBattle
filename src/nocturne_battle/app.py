@@ -33,6 +33,7 @@ from .time_editor import MinutesSeconds
 from .game_browser import GameBrowser
 from .studio import EngineScoreboard, ResultCards
 from .eval_graph import MoveEvaluationGraph
+from .draw_evaluation import strongest_agreement
 from .experiments import ExperimentRunner
 from .experiment_ui import ScalingPanel
 from .comparison_ui import CandidateViews
@@ -55,7 +56,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.3 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.4 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -77,7 +78,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.3'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.4'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -978,12 +979,23 @@ class Window(QMainWindow):
         picker_changed=getattr(self,'_picker_tournament_id',None)!=state['id']
         rows=range(len(state['games'])) if picker_changed else {state['index'],state['index']-1,current,getattr(self,'_browser_index',0)}
         self._picker_tournament_id=state['id']
+        if picker_changed: self._draw_eval_cache = {}
         for row in rows:
             if not 0<=row<len(state['games']):continue
             item=state['games'][row]
             status={'1-0':'White won','0-1':'Black won','1/2-1/2':'Draw'}.get(item['result'],'Playing' if row==state['index'] and self.tournament.active else ('Paused' if row==state['index'] else 'Pending'))
             if item['result'] != '*':
                 status += ' · ' + (item.get('termination') or 'Reason unavailable')
+            if item['result'] == '1/2-1/2':
+                cache_key = (row, len(item.get('move_searches', {})))
+                if cache_key not in self._draw_eval_cache:
+                    self._draw_eval_cache[cache_key] = strongest_agreement(item, self.db)
+                peak = self._draw_eval_cache[cache_key]
+                if peak is not None:
+                    value, move, a, b = peak
+                    status += f' · peak agreement {value/100:+.2f} (move {move}; A {a/100:+.2f}, B {b/100:+.2f})'
+                else:
+                    status += ' · agreement unavailable'
             self.game_selector.setItemText(row,f"Game {row+1} · Pair {item['pair']+1} · {status}")
             self.game_selector.setItemData(row, status, Qt.ItemDataRole.ToolTipRole)
         self.game_selector.blockSignals(False)

@@ -3,6 +3,10 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.5.4
+
+- Show the strongest shared evaluation for drawn games in the game picker, with both engines’ scores and the move.
+
 ## 0.5.3
 
 - Show the recorded draw or game-ending reason in the game picker and games table.
