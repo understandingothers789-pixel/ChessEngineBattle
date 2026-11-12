@@ -51,5 +51,5 @@ def test_review_is_not_overwritten_by_live_search_and_return_restores(qtbot,db,p
     assert w.live_panels[0].lines==lines and w.view_game.cursor==1
     w.return_live()
     assert w.follow_live and w.view_game.cursor==w.tournament.game.cursor
-    assert 'LIVE' in w.analysis_heading.text()
+    assert 'Live analysis' in w.analysis_heading.text()
     w.close()

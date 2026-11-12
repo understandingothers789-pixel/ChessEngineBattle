@@ -325,7 +325,7 @@ class AnalysisPanel(QWidget):
             record = self.record
             self.panel.set_multipv(record['multipv'])
             for line in record['lines'].values():
-                self.panel.update_line(line, self.turn)
+                self.panel.update_line(line, self.turn, light=True)
                 rank = line['multipv']
                 if rank in self.panel.rows:
                     self.panel.rows[rank][2].setToolTip(

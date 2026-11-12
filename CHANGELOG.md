@@ -3,6 +3,18 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.4.0
+
+- Default to short variation previews (3 full moves). Full variations remain
+  available on demand and are always saved. Give more width and height to the board.
+- Use a light slate and teal palette with a softer forest board and clearer
+  running/paused/completed match progress.
+- Add Save match for portable `.cebattle` files containing one tournament's
+  games, results, clocks and all recorded engine searches, depths and checkpoints.
+- Add Saved matches to browse the automatic library or open a portable file,
+  choose a game and review the engine's thinking at any recorded move.
+  Imported copies open for review without running engines or replacing history.
+
 ## 0.3.9
 
 - Put the board and readable move list on the left and engine analysis on the

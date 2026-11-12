@@ -174,7 +174,9 @@ class Search(QObject):
         self.watchdog.stop()
         self.render_timer.stop(); self.render_pending.clear()
         if self.context:
-            self.db.finish(self.context['id'], 'interrupted')
+            self.db.finish(self.context['id'], 'interrupted',dict(
+                lines=dict(self.collector.lines),depth_history=list(self.depth_history.values()),
+                message='Search paused before a move was played'))
             self.context = None
         self.engine.stop()
 
@@ -228,7 +230,7 @@ class Tournament(QObject):
         self.state = dict(id=str(uuid4()), profiles=[asdict(p) for p in profiles],
                           limits=[asdict(l) for l in limits], games=games, index=0,
                           multipv=multipv, checkpoint=checkpoint, maximum=maximum, seed=seed,
-                          draw_rule=dict(DEFAULT_RULE))
+                          draw_rule=dict(DEFAULT_RULE), created_at=time.time(), name=f'{profiles[0].name} vs {profiles[1].name}')
         self.restore_game()
         self.save()
 
@@ -241,6 +243,9 @@ class Tournament(QObject):
         self.changed.emit()
 
     def resume(self):
+        if self.state and self.state.get('review_only'):
+            self.failed.emit('Imported match copies open for review. Use Match setup to select your local engines and start a new match.')
+            return
         if not self.state or self.state['index'] >= len(self.state['games']):
             return
         if self.active:
