@@ -53,7 +53,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.4.0 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.4.1 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -95,12 +95,16 @@ class Window(QMainWindow):
         outer.addWidget(self.workspace)
 
         self.splitter = QSplitter()
+        self.splitter.setHandleWidth(10); self.splitter.setChildrenCollapsible(False)
         outer.addWidget(self.splitter)
         board_area = QWidget()
         board_layout = QVBoxLayout(board_area)
         self.match_banner = QLabel('Ready · load two engines, then open Match setup')
         self.match_banner.setObjectName('matchBanner'); self.match_banner.setWordWrap(True)
         board_layout.addWidget(self.match_banner)
+        self.score_label = QLabel('A 0 — 0 B')
+        self.score_label.setObjectName('matchScore'); self.score_label.setWordWrap(True)
+        board_layout.addWidget(self.score_label)
         self.position_label = QLabel('Game position')
         board_layout.addWidget(self.position_label)
         self.clock_label=QLabel('')
@@ -116,7 +120,12 @@ class Window(QMainWindow):
         self.evalbar.board_view = self.board
         board_row.addWidget(self.board, 1)
         board_row.addWidget(self.evalbar)
-        board_layout.addLayout(board_row, 1)
+        board_surface=QWidget();board_surface.setLayout(board_row)
+        self.board_splitter=QSplitter(Qt.Orientation.Vertical)
+        self.board_splitter.setHandleWidth(10);self.board_splitter.setChildrenCollapsible(False)
+        self.board_splitter.addWidget(board_surface)
+        board_layout.addWidget(self.board_splitter,1)
+        details=QWidget();details_layout=QVBoxLayout(details);details_layout.setContentsMargins(0,0,0,0)
         nav = QHBoxLayout()
         button('⏮', lambda: self.navigate(0), nav)
         button('←', lambda: self.navigate(self.view_game.cursor-1), nav)
@@ -124,7 +133,7 @@ class Window(QMainWindow):
         button('⏭', lambda: self.navigate(len(self.view_game.moves)), nav)
         button('Flip', self.flip, nav)
         button('Return to Live', self.return_live, nav)
-        board_layout.addLayout(nav)
+        details_layout.addLayout(nav)
         self.game_selector = QComboBox()
         self.game_selector.currentIndexChanged.connect(self.select_game)
         self.game_selector.hide()
@@ -133,7 +142,7 @@ class Window(QMainWindow):
         self.game_filter.textChanged.connect(self.filter_games)
 
         self.games_table = GameBrowser()
-        self.games_table.setMaximumHeight(130)
+        self.games_table.setMinimumHeight(65)
         self.games_table.clicked.connect(lambda index:self.table_game(index.row(),index.column()))
 
         self.moves = QTextBrowser()
@@ -143,17 +152,22 @@ class Window(QMainWindow):
         self.moves.setMinimumHeight(85)
         self.moves.setMaximumHeight(120)
         self.moves.setToolTip('Click any played move to see its saved engine variations on the right. Arrow keys review earlier or later moves. Opening-book moves have no engine search.')
-        board_layout.addWidget(QLabel('MOVES · click a move to review its saved analysis'))
-        board_layout.addWidget(self.moves)
+        details_layout.addWidget(QLabel('MOVES · click a move to review its saved analysis'))
+        details_layout.addWidget(self.moves)
         games_group = QGroupBox('Games in this match'); games_group.setCheckable(True); games_group.setChecked(False)
         games_layout = QVBoxLayout(games_group)
         self.games_body = QWidget(); games_body = QVBoxLayout(self.games_body)
-        games_body.addWidget(self.game_filter); games_body.addWidget(self.games_table)
+        games_body.addWidget(self.game_filter)
+        fit=button('Fit columns',self.games_table.fit_columns,games_body)
+        fit.setToolTip('Fit all table columns to their content. Drag header dividers to resize, or double-click one divider to fit that column. Hover shortened text to read it in full.')
+        games_body.addWidget(self.games_table)
         games_layout.addWidget(self.games_body); self.games_body.hide()
         games_group.toggled.connect(self.games_body.setVisible)
         games_group.setMaximumHeight(34)
-        games_group.toggled.connect(lambda expanded:games_group.setMaximumHeight(230 if expanded else 34))
-        board_layout.addWidget(games_group)
+        games_group.toggled.connect(lambda expanded:games_group.setMaximumHeight(16777215 if expanded else 34))
+        details_layout.addWidget(games_group)
+        self.board_splitter.addWidget(details)
+        self.board_splitter.setSizes([600,230])
         self.splitter.addWidget(board_area)
         work = QWidget()
         work_layout = QVBoxLayout(work)
@@ -777,6 +791,14 @@ class Window(QMainWindow):
         if state:
             complete = sum(g['result'] != '*' for g in state['games'])
             mode = 'RUNNING' if self.tournament.active else ('COMPLETED' if complete == len(state['games']) else 'PAUSED')
+            a_wins=b_wins=draws=0
+            for game in state['games']:
+                if game['result']=='1/2-1/2':draws+=1
+                elif game['result']!='*':
+                    if (game['result']=='1-0') == game['a_white']:a_wins+=1
+                    else:b_wins+=1
+            self.score_label.setText(f"A {a_wins+draws/2:g}  —  {b_wins+draws/2:g} B   ·   A wins {a_wins} / draws {draws} / B wins {b_wins}")
+            self.score_label.setToolTip(f"Engine A: {state['profiles'][0]['name']}\nEngine B: {state['profiles'][1]['name']}\nWins earn one point; draws earn half a point each. Scores follow engine A/B when colors swap.")
             self.match_banner.setText(f"{mode} · {state.get('name','Engine match')} · {complete}/{len(state['games'])} games completed")
         self.pause_button.setEnabled(bool(state and state['index'] < len(state['games'])))
         if state and state.get('review_only'):
@@ -1268,7 +1290,7 @@ class Window(QMainWindow):
             self.error(str(exc))
 
     def save_settings(self):
-        self.db.put('workspace', dict(clock_bases=[c.value() for c in self.clock_bases],clock_increments=[c.value() for c in self.clock_increments],silence_timeout=self.silence_timeout.value(), geometry=bytes(self.saveGeometry().toHex()).decode(), workspace=self.workspace.currentIndex(), splitter=self.splitter.sizes(), mode=self.mode.currentText(),
+        self.db.put('workspace', dict(clock_bases=[c.value() for c in self.clock_bases],clock_increments=[c.value() for c in self.clock_increments],silence_timeout=self.silence_timeout.value(), geometry=bytes(self.saveGeometry().toHex()).decode(), workspace=self.workspace.currentIndex(), splitter=self.splitter.sizes(), board_splitter=self.board_splitter.sizes(), table_widths=[self.games_table.columnWidth(i) for i in range(8)], mode=self.mode.currentText(),
             budgets=[x.text() for x in self.budgets], engines=[x.currentIndex() for x in self.engines],
             ui_layout=2, full_variations=self.full_variations.isChecked(), book=self.book.text(), pairs=self.pairs.value(), play_pv=self.play_pv.value(), auto_draw=self.auto_draw.isChecked(),
             checkpoint=self.checkpoint.text(), maximum=self.maximum.text(), seed=self.seed.value(),
@@ -1282,6 +1304,8 @@ class Window(QMainWindow):
         self.workspace.setCurrentIndex(state.get('workspace',0))
         self.silence_timeout.setValue(state.get('silence_timeout',120))
         self.splitter.setSizes(state['splitter'] if state.get('ui_layout') == 2 else [1000,500])
+        self.board_splitter.setSizes(state.get('board_splitter',[600,230]))
+        self.games_table._restore_widths=state.get('table_widths')
         self.mode.setCurrentText(state['mode'])
         for control,value in zip(self.clock_bases,state.get('clock_bases',[10/60,10/60])):control.setValue(value)
         for control,value in zip(self.clock_increments,state.get('clock_increments',[0.1,0.1])):control.setValue(value)

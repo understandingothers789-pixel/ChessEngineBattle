@@ -3,6 +3,16 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.4.1
+
+- Show a prominent A/B match score, wins and draws that follow the engines when
+  colors reverse, including when reviewing saved tournaments.
+- Add wider draggable horizontal/vertical pane dividers and retain pane sizes.
+- Auto-fit game table columns, keeping Game/Pair/Plies narrow and long names
+  compact. Fit columns resets sizing; drag or double-click header dividers to
+  adjust individual columns. Hover cells for full text.
+- Use pixel scrolling with larger scrollbar handles; retain table widths on restart.
+
 ## 0.4.0
 
 - Default to short variation previews (3 full moves). Full variations remain
