@@ -3,6 +3,14 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.5.2 rebuild 2
+
+- Fresh Windows rebuild with the same packaging specification and pinned build
+  tools recorded in the working 0.5.1 build; retains 0.5.2 best-line capture.
+- Executable file revision is 0.5.2.1 to distinguish the rebuilt binary.
+- Remains unsigned. CI startup/render validation does not establish acceptance
+  by SmartScreen, Smart App Control or Defender on a downloaded file.
+
 ## 0.5.2
 
 - Add Save previous best lines when the top move changes, enabled by default
