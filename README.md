@@ -5,6 +5,16 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+- [Download Chess Engine Battle 0.4.1 for Windows — score and layout controls](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43129855721/artifacts/13904807144) — prominent A/B points, wins and draws; draggable horizontal/vertical pane dividers; compact auto-fit game columns, Fit columns button and smoother pixel scrolling with larger handles. Pane sizes and column widths persist. 112 Windows tests passed, 1 optional real-engine test skipped; packaging and startup/render checks passed. [Source: 27c924b](https://github.com/understandingothers789-pixel/ChessEngineBattle/commit/27c924b44169357745dcfe2a45d7ec224ff6f3d1). Unsigned; GitHub sign-in required; Actions downloads expire.
+
+Drag the wide dividers between the board/analysis and above the moves/table area
+to resize the panes. Expand Games in this match to see the game table. Columns
+start compact; use **Fit columns** to reset them, drag a header divider to resize,
+or double-click a divider to fit that column. Hover shortened text for its full
+value. The score follows Engine A/B when colors swap and also shows saved-match
+results. Existing compact variations, saved matches and portable files remain
+available.
+
 - [Download Chess Engine Battle 0.4.0 for Windows — compact UI and saved tournaments](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43128956101/artifacts/13905175104) — shorter variation previews with a Full variations option, more room for the board, light slate/teal styling and clearer match status. Save match writes a portable tournament with its recorded analysis; Saved matches reopens previous tournaments and match files for per-move/depth review. 111 Windows tests passed, 1 optional real-engine test skipped; packaging and startup/render checks passed. [Source: a3bccb5](https://github.com/understandingothers789-pixel/ChessEngineBattle/commit/a3bccb598f7e0a199bd1f7d8c163e85eba25fd81). Unsigned; GitHub sign-in required; Actions downloads expire.
 
 ### 0.4.0 — compact match view and portable saved tournaments
