@@ -3,6 +3,10 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.5.5
+
+- Redesign the evaluation graph with an adaptive scale, move ticks, hover details, distinguishable engine lines and gaps for missing evaluations.
+
 ## 0.5.4 rebuild
 
 - Rebuild using the working 0.5.2 packaging specification and Windows workflow. File revision 0.5.4.1; Smart App Control acceptance depends on Windows.
