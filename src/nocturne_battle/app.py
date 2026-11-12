@@ -1040,6 +1040,7 @@ class Window(QMainWindow):
         for side in range(2):
             selector = self.saved_selectors[side]
             selector.blockSignals(True); selector.clear()
+            self.live_panels[side].divergence_index = None
             self.live_panels[side].clear(); self.live_games[side] = None
             self.saved_records[side] = []
             if side in runs:
@@ -1058,12 +1059,43 @@ class Window(QMainWindow):
                 for label,_ in rows:selector.addItem(label)
                 color = 'White' if run['fen'].split()[1] == 'w' else 'Black'
                 self.live_labels[side].setText(f"ENGINE {'AB'[side]} · {color} · move {game.board.native.fullmove_number} · recorded search")
+                link = item.get('move_searches', {}).get(str(move_ply), {})
+                elapsed = link.get('elapsed_ns')
+                timing = f' · move time {elapsed/1e9:.2f}s' if elapsed is not None else ''
+                if elapsed is None and final.get('lines'):
+                    first = final['lines'].get('1', final['lines'].get(1, {}))
+                    if first.get('time') is not None: timing = f" · engine search {first['time']/1000:.2f}s"
+                turn = 1 if color == 'White' else -1
+                remaining = link.get('clock_after', {}).get('remaining_ns', {})
+                left = remaining.get(str(turn), remaining.get(turn))
+                if left is not None: timing += f' · clock after move {left/1e9:.2f}s (includes increment)'
+                if not timing: timing = ' · timing not recorded'
+                self.live_labels[side].setText(self.live_labels[side].text()+timing)
                 if not rows:self.live_labels[side].setText(self.live_labels[side].text()+' · no variations reported')
             else:
                 self.live_labels[side].setText(f"Engine {'AB'[side]} · no recorded search yet (opening-book moves have no engine analysis)")
             selector.setVisible(bool(self.saved_records[side]))
             selector.setCurrentIndex(0); selector.blockSignals(False)
             self.choose_saved(side,0)
+        self.mark_main_divergence()
+
+    def mark_main_divergence(self):
+        lines = [panel.lines.get(1, {}) for panel in self.live_panels]
+        if not all(self.live_games) or not all(line.get('pv') for line in lines): return
+        starts = [len(game.moves) for game in self.live_games]
+        earlier = 0 if starts[0] <= starts[1] else 1
+        later = 1-earlier
+        gap = starts[later]-starts[earlier]
+        played = [move.uci() for move in self.live_games[later].moves[starts[earlier]:starts[later]]]
+        if lines[earlier]['pv'][:gap] != played: return
+        paths = [dict(enumerate(line['pv'], start)) for line,start in zip(lines,starts)]
+        shared = sorted(set(paths[0]) & set(paths[1]))
+        for index in shared:
+            if paths[0][index] != paths[1][index]:
+                for side,panel in enumerate(self.live_panels):
+                    panel.divergence_index = index-starts[side]
+                    panel.set_full(self.full_variations.isChecked())
+                break
 
     def review_move(self, ply):
         state = self.tournament.state

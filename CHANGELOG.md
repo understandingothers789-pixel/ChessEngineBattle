@@ -3,6 +3,10 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## Unreleased
+
+- Show recorded move time and remaining clocks in move review. Mark the first main-line difference with @ when both lines can be aligned to the same position.
+
 ## 0.5.5
 
 - Redesign the evaluation graph with an adaptive scale, move ticks, hover details, distinguishable engine lines and gaps for missing evaluations.
