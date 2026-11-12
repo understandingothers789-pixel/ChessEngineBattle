@@ -3,6 +3,19 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.4.2
+
+- Make dark the default and add Reset view to restore pane sizes, compact
+  variations, column fitting and live following without interrupting play.
+- Keep a current-match game picker with Previous/Next game visible above the
+  board, even when the table is hidden or resized.
+- Show wins/losses/draws for both engines and completed color-reversed pairs,
+  plus a rough game-score Elo difference. Incomplete pairs are excluded;
+  undefeated or winless scores have no finite Elo estimate.
+- Add Tablebases for both engines: select one Syzygy folder for missing paths,
+  optionally replace existing paths, check advertised engine support and use
+  up to five pieces. Saved profile changes apply to the next new match.
+
 ## 0.4.1
 
 - Show a prominent A/B match score, wins and draws that follow the engines when

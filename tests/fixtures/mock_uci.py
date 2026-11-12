@@ -13,6 +13,9 @@ for raw in sys.stdin:
         print('option name MultiPV type spin default 1 min 1 max 5')
         print('option name Threads type spin default 1 min 1 max 16')
         print('option name Hash type spin default 64 min 1 max 1024')
+        if '--syzygy' in sys.argv:
+            print('option name SyzygyPath type string default <empty>')
+            print('option name SyzygyProbeLimit type spin default 7 min 0 max 7')
         print('uciok', flush=True)
     elif line == 'isready':
         print('readyok', flush=True)

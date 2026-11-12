@@ -63,3 +63,18 @@ def summarize(state):
     else:
         text += 'Confidence interval unavailable: need ≥10 independent opening clusters and varying pair scores.\n'
     return text+f"Complete opening pairs: {r['pairs']} · distinct opening clusters: {r['clusters']}\n{r['method']}\nNot SPRT; repeated openings are grouped. Infinite estimates are unbounded, not precise strength measurements."
+
+
+def dashboard(state):
+    """Engine A perspective; only complete two-game pairs count as pairs."""
+    pairs=defaultdict(list);wins=losses=draws=0
+    for g in state['games']:
+        if g['result']=='*':continue
+        points=0.5 if g['result']=='1/2-1/2' else float((g['result']=='1-0')==g['a_white'])
+        wins+=points==1;losses+=points==0;draws+=points==0.5
+        pairs[g['pair']].append(points)
+    scores=[sum(values) for values in pairs.values() if len(values)==2]
+    n=wins+losses+draws
+    estimate=elo((wins+draws/2)/n) if n else None
+    return dict(wins=wins,losses=losses,draws=draws,pair_wins=sum(v>1 for v in scores),
+                pair_losses=sum(v<1 for v in scores),pair_draws=sum(v==1 for v in scores),elo=estimate)

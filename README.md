@@ -5,6 +5,31 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+### 0.4.2 — dark default, reset view, game navigation and tablebases
+
+**Reset view** restores pane sizes, compact variations, column fitting and live
+following without stopping the match. The game picker and Previous/Next game
+buttons stay above the board even when the table is hidden. Select any game and
+click its moves to review the recorded analysis; Follow live game returns to play.
+
+Results show game wins/losses/draws for both A and B, completed two-game pair
+wins/losses/draws, and a rough A-minus-B Elo difference from all completed game
+points. Incomplete pairs do not count toward pair results. The Elo estimate is
+unstable with small samples and is not a formal rating. A perfect or zero score
+has no finite estimate and is labeled unbounded.
+
+**Tablebases for both engines…** selects a Syzygy folder for the next new match.
+Choose the folder directly containing `.rtbw` files (and `.rtbz` files if
+available), not a parent folder containing subfolders. Existing engine paths are
+kept unless Replace existing paths is enabled. Each engine is checked for its
+advertised SyzygyPath option; unsupported engines are reported and left unchanged.
+Supported probe limits are set up to five pieces. These settings update saved
+profiles, not a match already in progress. Start a new match to use them; the
+start review shows the configured paths. Files must cover the actual position;
+selecting a folder does not verify that the entire five-piece set is complete.
+Non-Syzygy formats require a compatible engine and its own settings.
+
+
 - [Download Chess Engine Battle 0.4.1 for Windows — score and layout controls](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43129855721/artifacts/13904807144) — prominent A/B points, wins and draws; draggable horizontal/vertical pane dividers; compact auto-fit game columns, Fit columns button and smoother pixel scrolling with larger handles. Pane sizes and column widths persist. 112 Windows tests passed, 1 optional real-engine test skipped; packaging and startup/render checks passed. [Source: 27c924b](https://github.com/understandingothers789-pixel/ChessEngineBattle/commit/27c924b44169357745dcfe2a45d7ec224ff6f3d1). Unsigned; GitHub sign-in required; Actions downloads expire.
 
 Drag the wide dividers between the board/analysis and above the moves/table area

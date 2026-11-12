@@ -53,7 +53,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.4.1 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.4.2 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -74,7 +74,7 @@ class Window(QMainWindow):
         self.setCentralWidget(root)
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE  /  MATCH & ANALYSIS')
-        title.setStyleSheet('font-size: 21px; font-weight: 600; color: #263e50; padding: 8px;')
+        title.setStyleSheet('font-size: 21px; font-weight: 600; color: #dce8f1; padding: 8px;')
         outer.addWidget(title)
         quick = QHBoxLayout()
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -92,7 +92,10 @@ class Window(QMainWindow):
         outer.addLayout(quick)
         self.workspace = QComboBox()
         self.workspace.addItems(['Match Setup', 'Live Match', 'Analysis Comparison', 'Results & History', 'Node Scaling Experiment'])
-        outer.addWidget(self.workspace)
+        view_actions=QHBoxLayout();outer.addLayout(view_actions)
+        view_actions.addWidget(self.workspace,1)
+        button('Reset view',self.reset_view,view_actions)
+        button('Tablebases for both engines…',self.shared_tablebases,view_actions)
 
         self.splitter = QSplitter()
         self.splitter.setHandleWidth(10); self.splitter.setChildrenCollapsible(False)
@@ -136,7 +139,12 @@ class Window(QMainWindow):
         details_layout.addLayout(nav)
         self.game_selector = QComboBox()
         self.game_selector.currentIndexChanged.connect(self.select_game)
-        self.game_selector.hide()
+        picker=QHBoxLayout()
+        button('Previous game',lambda:self.select_game(max(0,self.game_selector.currentIndex()-1)),picker)
+        picker.addWidget(self.game_selector,1)
+        button('Next game',lambda:self.select_game(min(self.game_selector.count()-1,self.game_selector.currentIndex()+1)),picker)
+        board_layout.insertLayout(2,picker)
+        self.game_selector.setToolTip('Every game in the current tournament, including completed games. Selecting a game does not pause the match; Follow live game returns to current play.')
         self.game_filter = QLineEdit()
         self.game_filter.setPlaceholderText('Filter games by engine, pair, result or status')
         self.game_filter.textChanged.connect(self.filter_games)
@@ -281,6 +289,10 @@ class Window(QMainWindow):
         self.live_preview_board = BoardWidget(); self.live_preview_board.interactive = False
         self.live_preview_board.setFixedSize(270, 270); self.live_preview_board.hide()
         popup_layout.addWidget(self.live_preview_board)
+        self.results_summary=QLabel('Match results appear here after a match starts.')
+        self.results_summary.setWordWrap(True)
+        self.results_summary.setStyleSheet('padding: 10px; font-size: 14px;')
+        live_layout.addWidget(self.results_summary)
         live_layout.addStretch(1)
         self.live_area = live
         work_layout.insertWidget(0, live, 1)
@@ -537,6 +549,36 @@ class Window(QMainWindow):
     def open_setup(self):
         self.setup_dialog.show(); self.setup_dialog.raise_(); self.setup_dialog.activateWindow()
 
+    def reset_view(self):
+        self.setup_dialog.hide();self.clear_live_preview()
+        self.workspace.setCurrentIndex(1)
+        self.splitter.setSizes([1000,500]);self.board_splitter.setSizes([600,230])
+        self.games_body.parentWidget().setChecked(False)
+        self.full_variations.setChecked(False);self.game_filter.clear()
+        self.games_table._restore_widths=None;self.games_table.fit_columns()
+        self.dual.setChecked(False)
+        if self.tournament.state:self.return_live()
+        self.save_settings()
+
+    def shared_tablebases(self):
+        from .tablebases import TablebaseDialog
+        try:profiles=self.selected_profiles()
+        except ValueError as exc:self.error(str(exc));return
+        was_active=self.tournament.active
+        if was_active:self.tournament.pause()
+        try:
+            dialog=TablebaseDialog(profiles,self)
+            if dialog.exec()!=QDialog.DialogCode.Accepted:return
+            for configured in dialog.profiles:
+                for i,profile in enumerate(self.profiles):
+                    if profile.id==configured.id:self.profiles[i]=configured
+            self.db.put('profiles',[asdict(p) for p in self.profiles])
+            self.status.setText('For the next new match: '+'; '.join(dialog.messages))
+            if any('unsupported' in message for message in dialog.messages):
+                QMessageBox.information(self,'Tablebase support','For the next new match:\n'+'\n'.join(dialog.messages))
+        finally:
+            if was_active:self.tournament.resume()
+
     def toggle_pause(self):
         if self.tournament.active:self.tournament.pause()
         else:self.resume()
@@ -735,6 +777,9 @@ class Window(QMainWindow):
                 self.db.put('tournament:'+old['id'], old)
             description = '\n'.join(f"{p.name}: "+(f"{l.value/60000:g} min + {l.increment_ms/1000:g} sec" if l.mode=='clock' else f"{l.value:,} {l.mode}")+f", Threads={p.options.get('Threads','default')}, Hash={p.options.get('Hash','default')}" for p,l in zip(profiles,limits))
             description += f"\n{self.pairs.value()*2} games · {self.book.text() or 'start position'} · Playing PV{self.play_pv.value()} · checkpoints from {start:,}"
+            for profile in profiles:
+                path=next((v for k,v in profile.options.items() if k.lower()=='syzygypath' and v),'not configured')
+                description+=f'\n{profile.name} · tablebases: {path}'
             self.summary.setText(description)
             if QMessageBox.question(self, 'Match configuration', description+'\nStart this match?') != QMessageBox.StandardButton.Yes: return
             self.cancel_analysis()
@@ -800,6 +845,14 @@ class Window(QMainWindow):
             self.score_label.setText(f"A {a_wins+draws/2:g}  —  {b_wins+draws/2:g} B   ·   A wins {a_wins} / draws {draws} / B wins {b_wins}")
             self.score_label.setToolTip(f"Engine A: {state['profiles'][0]['name']}\nEngine B: {state['profiles'][1]['name']}\nWins earn one point; draws earn half a point each. Scores follow engine A/B when colors swap.")
             self.match_banner.setText(f"{mode} · {state.get('name','Engine match')} · {complete}/{len(state['games'])} games completed")
+        if state:
+            from .statistics import dashboard
+            summary=dashboard(state)
+            e=summary['elo']
+            estimate='not enough games' if e is None else (f'{e:+.0f} Elo' if math.isfinite(e) else ('unbounded positive' if e>0 else 'unbounded negative'))
+            self.score_label.setToolTip(self.score_label.toolTip()+'\nW/L/D = wins/losses/draws. Pair tallies use completed color-reversed two-game pairs only. Rough Elo uses all completed game points (A minus B), is unstable for small samples, and is not a formal rating. All wins or all losses have no finite estimate.')
+            self.results_summary.setToolTip(self.score_label.toolTip())
+            self.results_summary.setText(f"Match results · W/L/D = wins/losses/draws\nGames W/L/D: A {summary['wins']}/{summary['losses']}/{summary['draws']} · B {summary['losses']}/{summary['wins']}/{summary['draws']}\nCompleted pairs W/L/D: A {summary['pair_wins']}/{summary['pair_losses']}/{summary['pair_draws']} · B {summary['pair_losses']}/{summary['pair_wins']}/{summary['pair_draws']} · Rough A−B: {estimate}")
         self.pause_button.setEnabled(bool(state and state['index'] < len(state['games'])))
         if state and state.get('review_only'):
             self.pause_button.setText('Review only'); self.pause_button.setEnabled(False)
@@ -820,6 +873,13 @@ class Window(QMainWindow):
             self.game_selector.addItems([str(i+1) for i in range(len(state['games']))])
         index = min(state['index'], len(state['games'])-1) if self.follow_live else max(0, current)
         self.game_selector.setCurrentIndex(index)
+        picker_changed=getattr(self,'_picker_tournament_id',None)!=state['id']
+        rows=range(len(state['games'])) if picker_changed else {state['index'],state['index']-1,current,getattr(self,'_browser_index',0)}
+        self._picker_tournament_id=state['id']
+        for row in rows:
+            if not 0<=row<len(state['games']):continue
+            item=state['games'][row]
+            self.game_selector.setItemText(row,f"Game {row+1} · Pair {item['pair']+1} · {item['result']} · {len(item['moves'])} plies")
         self.game_selector.blockSignals(False)
         if self.follow_live:
             self.load_game(index)
@@ -1040,7 +1100,7 @@ class Window(QMainWindow):
         for i,text in enumerate(game.sans):
             number = initial.fullmove_number + (i+offset)//2
             prefix = f'{number}.' if (i+offset)%2 == 0 else (f'{number}…' if i == 0 else '')
-            color = '#137a70' if i+1 == game.cursor else '#304357'
+            color = '#8ed5c5' if i+1 == game.cursor else '#c4d3e1'
             anchor = ' id="selected"' if i+1 == game.cursor else ''
             cells.append(f'<a{anchor} href="{i+1}" style="color:{color}; text-decoration:none;">{prefix} {text}</a>')
         self.moves.setHtml('<div style="font-size:15px; line-height:180%">'+' &nbsp; '.join(cells)+'</div>')
