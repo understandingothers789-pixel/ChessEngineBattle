@@ -56,7 +56,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.8 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.9 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -78,7 +78,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.8'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.9'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -1054,8 +1054,10 @@ class Window(QMainWindow):
         panel.set_multipv(max([int(k) for k in lines] or [1]))
         line = lines.get('1', lines.get(1, {}))
         hits = line.get('tbhits')
-        base = self.live_labels[side].text().split(' · TB hits')[0]
-        self.live_labels[side].setText(base + (f' · TB hits {hits:,}' if isinstance(hits, int) else ' · TB hits not reported'))
+        base = self.live_labels[side].text().split(' · nodes:')[0].split(' · TB hits')[0]
+        nodes = line.get('nodes')
+        node_text = f'{nodes:,}' if isinstance(nodes, int) and not isinstance(nodes, bool) else 'not reported'
+        self.live_labels[side].setText(base + f' · nodes: {node_text}' + (f' · TB hits {hits:,}' if isinstance(hits, int) else ' · TB hits not reported'))
         for line in lines.values():panel.update_line(line, self.live_games[side].board.turn)
 
     def load_saved_analysis(self, item, ply):
