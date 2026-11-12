@@ -38,13 +38,13 @@ def test_invalid_clock_limits(limit):
 
 def test_uci_clock_commands_and_paired_reset(qtbot,db,profile):
     t=Tournament(db)
-    t.create([profile]*2,[Limit('clock',1000,50),Limit('clock',2000,100)],schedule(openings(None),1))
+    t.create([profile]*2,[Limit('clock',10000,50),Limit('clock',20000,100)],schedule(openings(None),1))
     t.state['max_plies']=2
     t.resume()
     qtbot.waitUntil(lambda:t.state['index']==2,timeout=15000)
     commands=[line[2:] for line in t.search.engine.connection.log if line.startswith('> go')]
-    assert commands[0]=='go wtime 1000 btime 2000 winc 50 binc 100'
-    assert commands[2]=='go wtime 2000 btime 1000 winc 100 binc 50'
+    assert commands[0]=='go wtime 10000 btime 20000 winc 50 binc 100'
+    assert commands[2]=='go wtime 20000 btime 10000 winc 100 binc 50'
     assert all('nodes' not in c and 'depth' not in c and 'movetime' not in c for c in commands)
     link=t.state['games'][0]['move_searches']['1']
     assert link['elapsed_ns']>=0

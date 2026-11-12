@@ -123,10 +123,10 @@ class Window(QMainWindow):
         self.clock_label.setToolTip('Live game clocks. Preparation is excluded; each accepted move earns its increment. Pausing freezes the remaining time.')
         self.clock_label.setStyleSheet('font-size: 14px; padding: 2px; color: #a6bad0;')
         board_layout.addWidget(self.clock_label)
-        board_row = QHBoxLayout()
+        board_row = QHBoxLayout();board_row.setContentsMargins(0,0,0,0)
         self.board = BoardWidget()
         self.board.interactive = False
-        self.board.setMinimumSize(240,240)
+        self.board.setMinimumSize(224,224)
         self.board.theme = 'Forest'
         self.board.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.evalbar = EvaluationBar()
