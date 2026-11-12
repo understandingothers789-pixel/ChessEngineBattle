@@ -5,6 +5,8 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+- [Download Chess Engine Battle 0.5.1 for Windows — engine settings in setup](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43150566412/artifacts/13914510056) — tablebase setup directly below Opening suite, with per-engine Syzygy path and Hash/Threads summaries; More settings for A/B opens supported engine options. Editing one side of a shared profile creates a separate profile. Settings apply to the next new match. Windows tests, packaging and executable startup/render checks passed. Source `3808bd1920048570bd1b7d1ad64b3dccfbf8484d`. Unsigned; GitHub sign-in required; Actions downloads expire.
+
 - [Download Chess Engine Battle 0.5.0 for Windows — Match Studio redesign](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43149189544/artifacts/13912204199) — engine scorecards with live clocks and progress, focused analysis and result cards, clearer navigation, first-match guidance and numbered setup sections. Dark by default, with compact-window support and keyboard shortcuts. Existing matches, profiles, recorded analysis and tablebase setup are retained. 117 Windows tests passed, 1 optional real-engine test skipped; packaging and executable startup/render checks passed. [Source: b8cdf6c](https://github.com/understandingothers789-pixel/ChessEngineBattle/commit/b8cdf6c0f913471bee436e6b51751829f12fd2e9). Unsigned; GitHub sign-in required; Actions downloads expire.
 
 ### 0.5.0 — Match Studio
