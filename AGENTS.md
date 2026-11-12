@@ -3,6 +3,9 @@
 The product name is **Chess Engine Battle**. Nocturne Chess is its upstream
 dependency, not this application's name. Keep upstream license attributions.
 
+Default to a dark theme. Keep Reset view and the current-match game picker
+accessible even when users resize or hide the games table.
+
 Use the existing **main** branch for all changes and builds. Do not create a new
 branch per version or build. Preserve existing historical branches and download
 links; new releases continue on main without resetting or rewriting history.

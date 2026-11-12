@@ -5,6 +5,8 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+- [Download Chess Engine Battle 0.4.2 for Windows — dark theme, reset and shared tablebases](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43132117205/artifacts/13905986693) — dark by default; Reset view; always-visible previous/next game picker; game and completed-pair W/L/D plus rough Elo difference; shared Syzygy folder setup for the next new match, preserving existing paths unless replaced. 116 Windows tests passed, 1 optional real-engine test skipped; packaging and startup/render checks passed. [Source: 188480e](https://github.com/understandingothers789-pixel/ChessEngineBattle/commit/188480ea88b7a7e6632015a63ef9002132c5ba49). Unsigned; GitHub sign-in required; Actions downloads expire. Tablebase configuration/protocol was tested with a fixture; actual five-piece probing requires the user's engine and tablebase files.
+
 ### 0.4.2 — dark default, reset view, game navigation and tablebases
 
 **Reset view** restores pane sizes, compact variations, column fitting and live
