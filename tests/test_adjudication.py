@@ -24,7 +24,7 @@ def test_perspective_and_invalid_scores():
 
 
 def test_automatic_draw_after_50_with_ten_consecutive_plies(qtbot,db,profile):
-    p=replace(profile,arguments=profile.arguments+['--score-cp=20'])
+    p=replace(profile,arguments=profile.arguments+['--score-cp=30'])
     t=Tournament(db)
     fen=Game().initial_fen.rsplit(' ',1)[0]+' 50'
     t.create([p]*2,[Limit('nodes',1000)]*2,schedule([fen],1))
@@ -34,7 +34,7 @@ def test_automatic_draw_after_50_with_ten_consecutive_plies(qtbot,db,profile):
         assert len(g['moves']) == 12  # Move 50 excluded; plies 3..12 qualify.
         assert g['draw_streak']==10 and g['result']=='1/2-1/2'
         assert 'Draw by evaluation agreement' in g['termination']
-        assert '±0.2 pawns' in g['termination']
+        assert '±0.3 pawns' in g['termination']
         assert g['adjudication']['ply']==12
     assert db.get('tournament')['games']==t.state['games']
     t.search.close()

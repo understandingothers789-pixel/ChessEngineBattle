@@ -32,6 +32,7 @@ from .runtime import Search, Tournament
 from .time_editor import MinutesSeconds
 from .game_browser import GameBrowser
 from .studio import EngineScoreboard, ResultCards
+from .eval_graph import MoveEvaluationGraph
 from .experiments import ExperimentRunner
 from .experiment_ui import ScalingPanel
 from .comparison_ui import CandidateViews
@@ -54,7 +55,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.2 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.3 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -76,7 +77,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.2'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.3'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -174,6 +175,8 @@ class Window(QMainWindow):
         self.moves.setToolTip('Click any played move to see its saved engine variations on the right. Arrow keys review earlier or later moves. Opening-book moves have no engine search.')
         details_layout.addWidget(QLabel('MOVES · click a move to review its saved analysis'))
         details_layout.addWidget(self.moves)
+        self.move_eval_graph = MoveEvaluationGraph()
+        self.move_eval_graph.selected.connect(self.inspect_move)
         games_group = QGroupBox('Games in this match'); games_group.setCheckable(True); games_group.setChecked(False)
         games_group.setObjectName('gamesDisclosure')
         games_layout = QVBoxLayout(games_group);games_layout.setContentsMargins(6,3,6,3)
@@ -244,6 +247,7 @@ class Window(QMainWindow):
         self.discovery.itemActivated.connect(self.milestone_clicked)
         evo_layout.addWidget(self.discovery)
         self.tabs.addTab(evolution_area, 'Search evolution')
+        self.tabs.addTab(self.move_eval_graph, 'Evaluation by move')
         self.stats = QPlainTextEdit()
         self.stats.setReadOnly(True)
         library = QWidget()
@@ -438,9 +442,9 @@ class Window(QMainWindow):
         form.addRow(self.keep_best_changes)
         self.auto_draw = QCheckBox('Automatic draw by evaluation agreement')
         self.auto_draw.setChecked(True)
-        self.auto_draw.setToolTip('After move 50, draw when both engines stay within ±0.20 pawns for 10 consecutive plies (5 full moves). Uses exact rank-1 scores from consecutive completed playing searches. Missing or non-exact scores reset the streak.')
+        self.auto_draw.setToolTip('After move 50, draw when both engines stay within ±0.30 pawns for 10 consecutive plies (5 full moves). Uses exact rank-1 scores from consecutive completed playing searches. Missing or non-exact scores reset the streak.')
         form.addRow(self.auto_draw)
-        rule_note = QLabel('After move 50 · both within ±0.20 pawns · 10 consecutive plies')
+        rule_note = QLabel('After move 50 · both within ±0.30 pawns · 10 consecutive plies')
         rule_note.setWordWrap(True); form.addRow(rule_note)
         self.checkpoint = QLineEdit('1000000')
         form.addRow('First checkpoint', self.checkpoint)
@@ -1000,6 +1004,7 @@ class Window(QMainWindow):
         for line in lines.values():panel.update_line(line, self.live_games[side].board.turn)
 
     def load_saved_analysis(self, item, ply):
+        self.move_eval_graph.load(item, self.db, ply)
         runs = {}
         for key, link in sorted(item.get('move_searches', {}).items(), key=lambda x:int(x[0]), reverse=True):
             if int(key) > ply:continue

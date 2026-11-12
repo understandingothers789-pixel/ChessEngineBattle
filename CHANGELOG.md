@@ -3,6 +3,11 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.5.3
+
+- Add a clickable Live board evaluation graph for both engines using final recorded move searches, including saved games. Positive scores favor White.
+- Automatic evaluation draw now defaults to ±0.30 pawns after move 50 for 10 consecutive plies. Existing matches retain their recorded rule.
+
 ## 0.5.2 rebuild 3 — recreated from 0.5.1
 
 - Restore application and packaging from exact 0.5.1 source, then reapply only
