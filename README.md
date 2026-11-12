@@ -5,6 +5,8 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+- [Download Chess Engine Battle 0.5.3 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43178985120/artifacts/13925187681) — evaluation graph by move, configurable automatic draw starting at move 30 with ±0.30 evaluations, tablebase hits, and game ending reasons. Windows tests, packaging and startup/render checks passed. Extract the entire ZIP; GitHub sign-in is required and Actions downloads expire.
+
 - [Download Windows 0.5.2 recreated from 0.5.1 — rebuild 3](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43153440423/artifacts/13914513533) — restored exact 0.5.1 application and packaging files, then reapplied the best-line history feature and version labels. Verified 44 unchanged baseline files byte-for-byte; uses the original 0.5.1 Windows workflow. File revision **0.5.2.2**. 120 Windows tests passed, 1 optional real-engine test skipped; packaging and executable startup/render smoke passed. Source `087295ef2620406987bea296c0ebc4f236383793`. Still unsigned: Smart App Control acceptance remains unverified. Extract the whole ZIP into a fresh folder. GitHub sign-in required; Actions downloads expire.
 
 ### 0.5.0 — Match Studio
