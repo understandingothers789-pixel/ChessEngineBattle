@@ -1005,6 +1005,10 @@ class Window(QMainWindow):
         panel = self.live_panels[side]; panel.clear()
         lines = record.get('lines', {})
         panel.set_multipv(max([int(k) for k in lines] or [1]))
+        line = lines.get('1', lines.get(1, {}))
+        hits = line.get('tbhits')
+        base = self.live_labels[side].text().split(' · TB hits')[0]
+        self.live_labels[side].setText(base + (f' · TB hits {hits:,}' if isinstance(hits, int) else ' · TB hits not reported'))
         for line in lines.values():panel.update_line(line, self.live_games[side].board.turn)
 
     def load_saved_analysis(self, item, ply):
@@ -1115,7 +1119,7 @@ class Window(QMainWindow):
         context = self.tournament.search.context
         if context and self.live_search_ids[side] != context['id']:self.live_started(context)
         name = self.tournament.state['profiles'][side]['name']
-        self.live_labels[side].setText(f"ENGINE {'AB'[side]} · {'White' if game.board.turn == 1 else 'Black'} · move {game.board.native.fullmove_number} · depth {info.get('depth',0)} · {info.get('nodes',0):,} nodes")
+        self.live_labels[side].setText(f"ENGINE {'AB'[side]} · {'White' if game.board.turn == 1 else 'Black'} · move {game.board.native.fullmove_number} · depth {info.get('depth',0)} · {info.get('nodes',0):,} nodes · TB hits {info['tbhits']:,}" if isinstance(info.get('tbhits'), int) else f"ENGINE {'AB'[side]} · {'White' if game.board.turn == 1 else 'Black'} · move {game.board.native.fullmove_number} · depth {info.get('depth',0)} · {info.get('nodes',0):,} nodes · TB hits not reported")
         if True:
             self.live_panels[side].set_multipv(self.tournament.state['multipv'])
             self.live_panels[side].update_line(info, game.board.turn)

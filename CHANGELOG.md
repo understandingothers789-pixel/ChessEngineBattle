@@ -5,6 +5,8 @@ New builds use the main branch; version numbers distinguish downloads.
 
 ## 0.5.3
 
+- Show each engine’s reported tablebase hits during live and recorded searches.
+
 - Choose the move when automatic draw counting starts; the default is move 30.
 
 - Add a clickable Live board evaluation graph for both engines using final recorded move searches, including saved games. Positive scores favor White.
