@@ -29,11 +29,17 @@ class MoveEvaluationGraph(QWidget):
         self.initial_move = 1
         self.initial_black = False
         self.last_ply = 0
+        self._load_key = None
         self.setToolTip('Final exact evaluations from each engine’s completed search. Scores are from White’s perspective; positive favors White. Click a point to review that move.')
 
     def load(self, item, db, cursor):
-        self.points = [[], []]
+        key = (id(db), id(item), len(item.get('moves', [])), tuple((k, v.get('search_run_id')) for k,v in item.get('move_searches', {}).items()))
         self.cursor = cursor
+        if key == self._load_key:
+            self.update()
+            return
+        self._load_key = key
+        self.points = [[], []]
         self.last_ply = len(item.get('moves', []))
         for key, link in item.get('move_searches', {}).items():
             run = db.search_run(link['search_run_id'])

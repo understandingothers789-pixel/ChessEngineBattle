@@ -3,6 +3,10 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.5.8
+
+- Show a persistent paused indicator in the toolbar; refresh reviewed clocks immediately. Cache graph data to reduce repeated database reads.
+
 ## 0.5.7
 
 - Scorecard clocks follow the selected move during review and retain live ticking on the current live move.

@@ -56,7 +56,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.7 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.8 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -78,7 +78,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.7'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.8'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -92,6 +92,8 @@ class Window(QMainWindow):
         self.save_match_button.setToolTip('Save a portable copy of this tournament, including every recorded move, engine variation, depth and checkpoint. Play pauses while saving.')
         self.library_button=button('Match library', self.open_library, quick)
         self.pause_button = button('Pause', self.toggle_pause, quick)
+        self.pause_status = QLabel(''); self.pause_status.setStyleSheet('color: #ffd278; font-weight: bold; padding: 0 8px;')
+        quick.addWidget(self.pause_status)
         self.pause_button.setToolTip('Pause engine searches and freeze both clocks. Click Resume to continue the current match.')
         self.adjudicate_button = button('Adjudicate game…', self.adjudicate_game, quick)
         quick.removeWidget(self.load_a_button);quick.removeWidget(self.load_b_button)
@@ -960,6 +962,9 @@ class Window(QMainWindow):
         for control in (self.game_selector,self.previous_game_button,self.next_game_button):control.setVisible(bool(state))
         self.setup_button.setText('New match…' if state else 'Set up match…')
         self.pause_button.setText('Pause' if self.tournament.active else 'Resume')
+        is_paused = bool(state and state.get('index', 0) < len(state.get('games', [])) and not self.tournament.active)
+        self.pause_status.setText('PAUSED' if is_paused else '')
+        self.pause_status.setVisible(is_paused)
         self.save_match_button.setEnabled(bool(state))
         if state:
             complete = sum(g['result'] != '*' for g in state['games'])
@@ -1133,6 +1138,7 @@ class Window(QMainWindow):
         if index < 0:return
         self.analysis_heading.setText('Recorded analysis · select a depth below')
         self.load_saved_analysis(state['games'][index],ply)
+        self.update_clocks()
 
     def restore_live_analysis(self):
         state = self.tournament.state
