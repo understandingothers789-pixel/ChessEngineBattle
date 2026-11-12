@@ -6,6 +6,7 @@ New builds use the main branch; version numbers distinguish downloads.
 ## 0.5.9
 
 - Show recorded node counts for the selected engine search during move review.
+- Highlight the divergence marker and move in recorded main variations.
 
 ## 0.5.8
 

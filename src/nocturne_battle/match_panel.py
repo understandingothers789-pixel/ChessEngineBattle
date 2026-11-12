@@ -1,5 +1,7 @@
 """Short display previews retain the complete underlying engine data."""
 from nocturne.gui.candidates import CandidatePanel
+from PySide6.QtGui import QColor, QTextCharFormat, QFont
+from PySide6.QtCore import QRegularExpression
 
 
 class MatchCandidates(CandidatePanel):
@@ -15,6 +17,13 @@ class MatchCandidates(CandidatePanel):
             san[self.divergence_index] = '@ ' + san[self.divergence_index]
         shown = dict(info, san=san[:self.move_limit] if self.move_limit else san)
         super()._paint_line(rank,shown,turn,False,detailed,previous,historical)
+        if rank == 1 and self.divergence_index is not None and self.divergence_index < len(shown['san']):
+            moves = self.rows[rank][2]
+            cursor = moves.document().find(QRegularExpression(r'@\s+\S+'))
+            if not cursor.isNull():
+                fmt = QTextCharFormat(); fmt.setForeground(QColor('#071823'))
+                fmt.setBackground(QColor('#ffcf66')); fmt.setFontWeight(QFont.Weight.Bold)
+                cursor.mergeCharFormat(fmt)
 
     def set_full(self, full):
         self.move_limit = None if full else 6
