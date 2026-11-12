@@ -1,5 +1,6 @@
 """Qt asynchronous orchestration on Nocturne's existing UCI controller."""
 from dataclasses import asdict
+from copy import deepcopy
 from uuid import uuid4
 import time
 from .clocks import MatchClock
@@ -45,7 +46,7 @@ class Search(QObject):
         self.render_timer.setInterval(80); self.render_timer.timeout.connect(self.flush_render)
 
     def start(self, game, profile, limit, multipv=1, provenance='live-playing', start=1_000_000,
-              maximum=None, tournament=None, kind="continuous", silence_timeout_ms=120000, clock_command=None):
+              maximum=None, tournament=None, kind="continuous", silence_timeout_ms=120000, clock_command=None, save_best_changes=True):
         self.cancel()
         limit.validate()
         if limit.mode == 'clock' and not clock_command:raise ValueError('Clock searches require both game clocks')
@@ -63,9 +64,12 @@ class Search(QObject):
             raise ValueError('Engine executable changed; revalidate its profile')
         self.collector = Checkpoints(start, maximum)
         self.depth_history = {}
+        self.best_changes = []
+        self.save_best_changes = save_best_changes
         self.required = min(multipv, len(list(game.board.legal_moves())))
         self.context = self.db.begin(game, profile, limit, multipv, provenance, tournament)
         self.context['kind'] = kind
+        self.context['save_best_changes'] = save_best_changes
         if clock_command:self.context['clock_go']=clock_command
         self.context['silence_timeout_ms'] = silence_timeout_ms
         self.context['checkpoint_start'] = start
@@ -118,11 +122,17 @@ class Search(QObject):
         if not validated:
             return
         if self.silence_timeout_ms > 0: self.watchdog.start(self.silence_timeout_ms)
+        previous = self.collector.lines.get(1)
+        sequence = self.collector.sequence
         snapshot = self.collector.observe(validated, self.required)
+        if (self.save_best_changes and validated['multipv']==1 and self.collector.sequence!=sequence
+            and previous and previous['pv'][0]!=validated['pv'][0]):
+            self.best_changes.append(dict(lines={'1':deepcopy(previous)},
+                changed_to=validated['pv'][0], replacement_depth=validated.get('depth'),
+                change_number=len(self.best_changes)+1))
         depth = validated.get('depth')
         if (isinstance(depth,int) and 1 <= depth <= 128 and
             all(rank in self.collector.lines and self.collector.lines[rank].get('depth') == depth for rank in range(1,self.required+1))):
-            from copy import deepcopy
             self.depth_history[depth] = dict(depth=depth, lines=deepcopy(self.collector.lines))
         if snapshot and self.context['kind'] == 'continuous':
             try:
@@ -151,6 +161,7 @@ class Search(QObject):
                 # Persist final ranks even when a short search never reaches a checkpoint.
                 data['lines'] = dict(self.collector.lines)
                 data['depth_history'] = list(self.depth_history.values())
+                data['best_changes'] = self.best_changes
             complete = all(rank in self.collector.lines for rank in range(1, self.required+1))
             status = ('completed' if complete else 'completed-incomplete') if kind == 'result' else 'failed'
             if kind == 'result' and context['kind'] == 'independent':
@@ -175,7 +186,7 @@ class Search(QObject):
         self.render_timer.stop(); self.render_pending.clear()
         if self.context:
             self.db.finish(self.context['id'], 'interrupted',dict(
-                lines=dict(self.collector.lines),depth_history=list(self.depth_history.values()),
+                lines=dict(self.collector.lines),depth_history=list(self.depth_history.values()),best_changes=self.best_changes,
                 message='Search paused before a move was played'))
             self.context = None
         self.engine.stop()
@@ -308,7 +319,8 @@ class Tournament(QObject):
                               Limit(**self.state['limits'][side]), self.state['multipv'],
                               start=self.state['checkpoint'], maximum=self.state['maximum'],
                               tournament=self.state['id'],silence_timeout_ms=0 if self.clock else self.state.get('silence_timeout_ms',120000),
-                              clock_command=self.clock.uci() if self.clock else None)
+                              clock_command=self.clock.uci() if self.clock else None,
+                              save_best_changes=self.state.get('save_best_changes',True))
         except (ValueError, OSError) as exc:
             self.error(str(exc))
         self.changed.emit()

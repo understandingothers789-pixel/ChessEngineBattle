@@ -54,7 +54,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.1 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.2 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -76,7 +76,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.1'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.2'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -432,6 +432,10 @@ class Window(QMainWindow):
         self.play_pv.setValue(3)
         self.play_pv.setToolTip('Number of candidate variations each playing engine searches and saves for every move. More variations can reduce playing strength at the same time or node budget. Requires engine MultiPV support.')
         form.addRow('Playing MultiPV', self.play_pv)
+        self.keep_best_changes=QCheckBox('Save previous best lines when the top move changes')
+        self.keep_best_changes.setChecked(True)
+        self.keep_best_changes.setToolTip('Works even with MultiPV 1. Save the last reported old best line, depth, score and nodes before each top-move change. Repeated changes back to a prior move are kept as separate events. View these in recorded move analysis. Applies to new matches.')
+        form.addRow(self.keep_best_changes)
         self.auto_draw = QCheckBox('Automatic draw by evaluation agreement')
         self.auto_draw.setChecked(True)
         self.auto_draw.setToolTip('After move 50, draw when both engines stay within ±0.20 pawns for 10 consecutive plies (5 full moves). Uses exact rank-1 scores from consecutive completed playing searches. Missing or non-exact scores reset the streak.')
@@ -869,6 +873,7 @@ class Window(QMainWindow):
                 self.pairs.value(), self.seed.value(), self.randomized.isChecked()),
                 self.play_pv.value(), start, maximum, self.seed.value())
             self.tournament.state['silence_timeout_ms']=self.silence_timeout.value()*1000
+            self.tournament.state['save_best_changes']=self.keep_best_changes.isChecked()
             self.tournament.state['draw_rule']['enabled']=self.auto_draw.isChecked()
             self.tournament.save()
             self.follow_live = True
@@ -1016,6 +1021,9 @@ class Window(QMainWindow):
                 game.id = run['game']; self.live_games[side] = game
                 final = run.get('final_result', {})
                 rows = [('Final variations', final)] if final.get('lines') else []
+                for r in final.get('best_changes',[]):
+                    line=r['lines']['1']
+                    rows.append((f"Best change {r['change_number']} · {line.get('san',[line['pv'][0]])[0]} · depth {line.get('depth','?')} · {line.get('nodes',0):,} nodes",r))
                 rows += [(f"Depth {r['depth']} · saved variations", r) for r in final.get('depth_history', [])]
                 rows += [(f"Checkpoint {r['actual']:,} nodes", r) for r in self.db.records(game,Profile(**run['profile'])) if r['id'] == run['id']]
                 self.saved_records[side] = [r for _,r in rows]
@@ -1442,7 +1450,7 @@ class Window(QMainWindow):
     def save_settings(self):
         self.db.put('workspace', dict(clock_bases=[c.value() for c in self.clock_bases],clock_increments=[c.value() for c in self.clock_increments],silence_timeout=self.silence_timeout.value(), geometry=bytes(self.saveGeometry().toHex()).decode(), workspace=self.workspace.currentIndex(), splitter=self.splitter.sizes(), board_splitter=self.board_splitter.sizes(), table_widths=[self.games_table.columnWidth(i) for i in range(8)], mode=self.mode.currentText(),
             budgets=[x.text() for x in self.budgets], engines=[x.currentIndex() for x in self.engines],
-            ui_layout=2, full_variations=self.full_variations.isChecked(), book=self.book.text(), pairs=self.pairs.value(), play_pv=self.play_pv.value(), auto_draw=self.auto_draw.isChecked(),
+            keep_best_changes=self.keep_best_changes.isChecked(), ui_layout=2, full_variations=self.full_variations.isChecked(), book=self.book.text(), pairs=self.pairs.value(), play_pv=self.play_pv.value(), auto_draw=self.auto_draw.isChecked(),
             checkpoint=self.checkpoint.text(), maximum=self.maximum.text(), seed=self.seed.value(),
             randomized=self.randomized.isChecked(), ratio=self.ratio.currentText(), dual=self.dual.isChecked()))
 
@@ -1466,6 +1474,7 @@ class Window(QMainWindow):
         self.book.setText(state['book'])
         self.pairs.setValue(state['pairs'])
         self.play_pv.setValue(state['play_pv'])
+        self.keep_best_changes.setChecked(state.get('keep_best_changes',True))
         self.full_variations.setChecked(state.get('full_variations',False))
         self.auto_draw.setChecked(state.get('auto_draw',True))
         self.checkpoint.setText(state['checkpoint'])

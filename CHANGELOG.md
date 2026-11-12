@@ -3,6 +3,15 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.5.2
+
+- Add Save previous best lines when the top move changes, enabled by default
+  for new matches. Works with MultiPV 1 or higher and between node checkpoints.
+- Keep every accepted top-move change, including same-depth changes and returns
+  to an earlier move, with the old line's actual depth, score, nodes and full PV.
+- Store events on completion or pause and include them in portable match files.
+  Select Best change entries while reviewing a played move to preview the old line.
+
 ## 0.5.1
 
 - Add shared tablebase setup and per-engine path summaries directly below Opening suite.

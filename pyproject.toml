@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chess-engine-battle"
-version = "0.5.1"
+version = "0.5.2"
 description = "Chess Engine Battle — engine matches and historical search comparison"
 requires-python = ">=3.12"
 license = "GPL-3.0-or-later"
