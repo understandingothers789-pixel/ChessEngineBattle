@@ -54,7 +54,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.0 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.1 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -76,7 +76,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.0'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.1'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -349,6 +349,8 @@ class Window(QMainWindow):
         for engine_choice in self.engines:engine_choice.currentIndexChanged.connect(self.refresh_engine_names)
         form.addRow('Engine A', self.engines[0])
         form.addRow('Engine B', self.engines[1])
+        for side in range(2):
+            more=QPushButton('More settings for Engine '+ 'AB'[side]+'…');more.clicked.connect(lambda checked=False,s=side:self.edit_engine_settings(s));form.addRow(more)
         management=QGroupBox('Manage saved engines (optional)')
         management.setCheckable(True);management.setChecked(False)
         management_layout=QVBoxLayout(management);management_body=QWidget()
@@ -402,6 +404,8 @@ class Window(QMainWindow):
         opening_group=QGroupBox('02  OPENINGS & MATCH RULES');form=QFormLayout(opening_group);config.addWidget(opening_group)
         self.book = QLineEdit()
         form.addRow('Opening suite', self.book)
+        tb=QPushButton('Endgame tablebases for both engines…');tb.clicked.connect(self.shared_tablebases);form.addRow(tb)
+        self.tb_status=QLabel();self.tb_status.setWordWrap(True);form.addRow(self.tb_status)
         self.recent_books = QComboBox(); self.recent_books.addItem('Recent opening suites…')
         self.recent_books.addItems(db.get('recent_books',[]))
         self.recent_books.textActivated.connect(lambda text: self.book.setText(text) if text != 'Recent opening suites…' else None)
@@ -591,7 +595,34 @@ class Window(QMainWindow):
         a,b = [c.text() for c in self.budgets]
         self.budgets[0].setText(b); self.budgets[1].setText(a)
 
+    def refresh_setup_status(self):
+        rows=[]
+        for side,control in enumerate(self.engines):
+            index=control.currentIndex()
+            if 0<=index<len(self.profiles):
+                p=self.profiles[index];path=next((v for k,v in p.options.items() if k.lower()=='syzygypath' and v),'Not configured')
+                rows.append(f"Engine {'AB'[side]} · Hash {p.options.get('Hash','engine default')} MB · Threads {p.options.get('Threads','engine default')} · Syzygy: {path}")
+        self.tb_status.setText('\n'.join(rows) or 'Select engines to configure their tablebases and settings. Changes apply to the next new match.')
+
+    def edit_engine_settings(self,side):
+        index=self.engines[side].currentIndex()
+        if index<0:self.error('Load an engine first.');return
+        original=self.profiles[index]
+        dialog=ProfileDialog(self,existing=original)
+        for group in dialog.findChildren(QGroupBox):
+            if group.title().startswith('Engine options'):group.setChecked(True)
+        QTimer.singleShot(0,dialog.validate)
+        if dialog.exec()==QDialog.DialogCode.Accepted:
+            if self.engines[1-side].currentIndex()==index:
+                dialog.profile.name=dialog.profile.name+' · '+ 'AB'[side]
+                self.profiles.append(dialog.profile);self.populate_profiles();self.engines[side].setCurrentIndex(len(self.profiles)-1)
+            else:
+                dialog.profile.id=original.id;self.profiles[index]=dialog.profile
+            self.db.put('profiles',[asdict(p) for p in self.profiles])
+        self.refresh_setup_status()
+
     def open_setup(self):
+        self.refresh_setup_status()
         self.setup_dialog.show(); self.setup_dialog.raise_(); self.setup_dialog.activateWindow()
 
     def reset_view(self):
@@ -619,6 +650,7 @@ class Window(QMainWindow):
                     if profile.id==configured.id:self.profiles[i]=configured
             self.db.put('profiles',[asdict(p) for p in self.profiles])
             self.status.setText('For the next new match: '+'; '.join(dialog.messages))
+            self.refresh_setup_status()
             if any('unsupported' in message for message in dialog.messages):
                 QMessageBox.information(self,'Tablebase support','For the next new match:\n'+'\n'.join(dialog.messages))
         finally:

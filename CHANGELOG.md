@@ -3,6 +3,11 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.5.1
+
+- Add shared tablebase setup and per-engine path summaries directly below Opening suite.
+- Add More settings for A/B in Match Setup, opening tested engine options including Hash and Threads. Changes apply to the next match.
+
 ## 0.5.0 — Match Studio design
 
 - Redesign the dark workspace with engine scorecards, distinct A/B accents,
