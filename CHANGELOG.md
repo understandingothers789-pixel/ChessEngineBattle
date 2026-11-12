@@ -3,6 +3,21 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.5.0 — Match Studio design
+
+- Redesign the dark workspace with engine scorecards, distinct A/B accents,
+  live clocks, completion progress and separate game/pair/Elo result cards.
+- Replace the workspace dropdown with clear navigation and organize the toolbar
+  around New match, Pause/Resume, Save copy and Match library. Engine loading
+  lives on each engine's card; Reset view and tablebases stay visible.
+- Add a first-match guide and numbered setup sections. Keep advanced position
+  analysis tucked away until requested, and style engine and library dialogs.
+- Frame live and recorded variations as focused cards with shorter metadata and
+  clear game-result labels. Preserve complete recorded analysis and match files.
+- Fit the workspace at 1280×800, grow the board at larger sizes, and allow the
+  analysis side to scroll. Pane resizing and reset remain available.
+- Add Ctrl+N (setup), Ctrl+O (library), Ctrl+Shift+S (save copy), and F9 (live).
+
 ## 0.4.2
 
 - Make dark the default and add Reset view to restore pane sizes, compact

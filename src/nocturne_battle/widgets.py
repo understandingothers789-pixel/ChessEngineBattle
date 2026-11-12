@@ -95,6 +95,7 @@ class ProfileDialog(QDialog):
         self.option_list.hide(); advanced.toggled.connect(self.option_list.setVisible)
         controls = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         controls.button(QDialogButtonBox.StandardButton.Save).setText('Save engine')
+        controls.button(QDialogButtonBox.StandardButton.Save).setObjectName('primaryAction')
         controls.accepted.connect(self.save)
         controls.rejected.connect(self.reject)
         layout.addWidget(controls)

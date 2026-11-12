@@ -5,6 +5,26 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+### 0.5.0 — Match Studio
+
+The dark studio uses mint and blue engine scorecards with points, W/L/D and live
+clocks, a completion progress bar, focused analysis cards, and game/pair/Elo result
+cards. **Load engine** on each scorecard selects your local executable. **New
+match…** opens numbered setup sections; advanced position tools are optional.
+
+Use the top navigation for **Live board**, **Results & history**, **Advanced
+analysis** and **Experiments**. The game picker uses readable results such as
+White won, Black won and Draw. Click a played move for recorded analysis and use
+**Follow live game** to return to play. **Save copy…** creates the same portable
+`.cebattle` match file as the earlier Save match button; automatic local saving
+continues. **Match library** opens past tournaments. **Reset view** and shared
+**Tablebases** remain visible. Existing profiles, history and settings are retained.
+
+Shortcuts: **Ctrl+N** setup, **Ctrl+O** library, **Ctrl+Shift+S** save copy,
+**F9** follow live. The workspace fits 1280×800 and grows at larger sizes; the
+analysis side scrolls when necessary. The 0.5.0 download follows Windows validation.
+
+
 - [Download Chess Engine Battle 0.4.2 for Windows — dark theme, reset and shared tablebases](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43132117205/artifacts/13905986693) — dark by default; Reset view; always-visible previous/next game picker; game and completed-pair W/L/D plus rough Elo difference; shared Syzygy folder setup for the next new match, preserving existing paths unless replaced. 116 Windows tests passed, 1 optional real-engine test skipped; packaging and startup/render checks passed. [Source: 188480e](https://github.com/understandingothers789-pixel/ChessEngineBattle/commit/188480ea88b7a7e6632015a63ef9002132c5ba49). Unsigned; GitHub sign-in required; Actions downloads expire. Tablebase configuration/protocol was tested with a fixture; actual five-piece probing requires the user's engine and tablebase files.
 
 ### 0.4.2 — dark default, reset view, game navigation and tablebases

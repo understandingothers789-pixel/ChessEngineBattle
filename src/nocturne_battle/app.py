@@ -12,7 +12,7 @@ from PySide6.QtGui import QColor, QPainter, QPen, QKeySequence, QShortcut, QCurs
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QFormLayout, QLabel, QPushButton, QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox, QCheckBox,
     QSplitter, QScrollArea, QFileDialog, QMessageBox, QDialog, QDialogButtonBox,
-    QGroupBox, QSizePolicy, QTabWidget, QTableWidget, QTableWidgetItem, QPlainTextEdit, QTextBrowser, QListWidget,QListWidgetItem)
+    QGroupBox, QFrame, QButtonGroup, QSizePolicy, QTabWidget, QTableWidget, QTableWidgetItem, QPlainTextEdit, QTextBrowser, QListWidget,QListWidgetItem)
 from nocturne.core.game import Game
 from nocturne.core.board import Board
 from nocturne.engine.uci_types import score_label
@@ -31,6 +31,7 @@ from .model import Database, Profile, Limit, executable_hash, openings, schedule
 from .runtime import Search, Tournament
 from .time_editor import MinutesSeconds
 from .game_browser import GameBrowser
+from .studio import EngineScoreboard, ResultCards
 from .experiments import ExperimentRunner
 from .experiment_ui import ScalingPanel
 from .comparison_ui import CandidateViews
@@ -53,7 +54,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.4.2 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.0 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -73,27 +74,34 @@ class Window(QMainWindow):
         root = QWidget()
         self.setCentralWidget(root)
         outer = QVBoxLayout(root)
-        title = QLabel('CHESS ENGINE BATTLE  /  MATCH & ANALYSIS')
-        title.setStyleSheet('font-size: 21px; font-weight: 600; color: #dce8f1; padding: 8px;')
-        outer.addWidget(title)
-        quick = QHBoxLayout()
+        title = QLabel('CHESS ENGINE BATTLE')
+        title.setObjectName('studioTitle')
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.0'));outer.addLayout(brand)
+        outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
+        quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
         self.load_b_button = button('Load engine B…', lambda:self.load_engine(1), quick)
         for control in (self.load_a_button,self.load_b_button):
             control.setToolTip('Choose a local UCI engine executable, such as Stockfish. Test it and save its settings to use it in matches.')
-        button('Match setup…', self.open_setup, quick)
-        self.save_match_button = button('Save match…', self.save_match_file, quick)
+        self.setup_button=button('New match…', self.open_setup, quick)
+        self.setup_button.setObjectName('primaryAction')
+        self.save_match_button = button('Save copy…', self.save_match_file, quick)
         self.save_match_button.setObjectName('saveMatch')
         self.save_match_button.setToolTip('Save a portable copy of this tournament, including every recorded move, engine variation, depth and checkpoint. Play pauses while saving.')
-        button('Saved matches…', self.open_library, quick)
+        self.library_button=button('Match library', self.open_library, quick)
         self.pause_button = button('Pause', self.toggle_pause, quick)
         self.pause_button.setToolTip('Pause engine searches and freeze both clocks. Click Resume to continue the current match.')
         self.adjudicate_button = button('Adjudicate game…', self.adjudicate_game, quick)
-        outer.addLayout(quick)
+        quick.removeWidget(self.load_a_button);quick.removeWidget(self.load_b_button)
         self.workspace = QComboBox()
         self.workspace.addItems(['Match Setup', 'Live Match', 'Analysis Comparison', 'Results & History', 'Node Scaling Experiment'])
         view_actions=QHBoxLayout();outer.addLayout(view_actions)
-        view_actions.addWidget(self.workspace,1)
+        self.workspace.hide()
+        self.nav_buttons={};self.nav_group=QButtonGroup(self)
+        for text,index in [('Live board',1),('Results & history',3),('Advanced analysis',2),('Experiments',4)]:
+            control=button(text,lambda checked=False,i=index:self.workspace.setCurrentIndex(i),view_actions)
+            control.setCheckable(True);control.setObjectName('navTab');self.nav_group.addButton(control);self.nav_buttons[index]=control
+        view_actions.addStretch(1)
         button('Reset view',self.reset_view,view_actions)
         button('Tablebases for both engines…',self.shared_tablebases,view_actions)
 
@@ -107,16 +115,18 @@ class Window(QMainWindow):
         board_layout.addWidget(self.match_banner)
         self.score_label = QLabel('A 0 — 0 B')
         self.score_label.setObjectName('matchScore'); self.score_label.setWordWrap(True)
-        board_layout.addWidget(self.score_label)
+        self.score_label.hide()
+        self.scoreboard=EngineScoreboard([self.load_a_button,self.load_b_button]);board_layout.insertWidget(0,self.scoreboard)
         self.position_label = QLabel('Game position')
         board_layout.addWidget(self.position_label)
         self.clock_label=QLabel('')
         self.clock_label.setToolTip('Live game clocks. Preparation is excluded; each accepted move earns its increment. Pausing freezes the remaining time.')
-        self.clock_label.setStyleSheet('font-size: 19px; padding: 6px;')
+        self.clock_label.setStyleSheet('font-size: 14px; padding: 2px; color: #a6bad0;')
         board_layout.addWidget(self.clock_label)
         board_row = QHBoxLayout()
         self.board = BoardWidget()
         self.board.interactive = False
+        self.board.setMinimumSize(240,240)
         self.board.theme = 'Forest'
         self.board.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.evalbar = EvaluationBar()
@@ -136,13 +146,15 @@ class Window(QMainWindow):
         button('⏭', lambda: self.navigate(len(self.view_game.moves)), nav)
         button('Flip', self.flip, nav)
         button('Return to Live', self.return_live, nav)
+        for i in range(nav.count()):
+            if nav.itemAt(i).widget():nav.itemAt(i).widget().setObjectName('boardNav')
         details_layout.addLayout(nav)
         self.game_selector = QComboBox()
         self.game_selector.currentIndexChanged.connect(self.select_game)
         picker=QHBoxLayout()
-        button('Previous game',lambda:self.select_game(max(0,self.game_selector.currentIndex()-1)),picker)
+        self.previous_game_button=button('Previous game',lambda:self.select_game(max(0,self.game_selector.currentIndex()-1)),picker)
         picker.addWidget(self.game_selector,1)
-        button('Next game',lambda:self.select_game(min(self.game_selector.count()-1,self.game_selector.currentIndex()+1)),picker)
+        self.next_game_button=button('Next game',lambda:self.select_game(min(self.game_selector.count()-1,self.game_selector.currentIndex()+1)),picker)
         board_layout.insertLayout(2,picker)
         self.game_selector.setToolTip('Every game in the current tournament, including completed games. Selecting a game does not pause the match; Follow live game returns to current play.')
         self.game_filter = QLineEdit()
@@ -157,13 +169,14 @@ class Window(QMainWindow):
         self.moves.setOpenLinks(False)
         self.moves.anchorClicked.connect(lambda url: self.inspect_move(int(url.toString())))
         self.moves.setReadOnly(True)
-        self.moves.setMinimumHeight(85)
-        self.moves.setMaximumHeight(120)
+        self.moves.setMinimumHeight(45)
+        self.moves.setMaximumHeight(90)
         self.moves.setToolTip('Click any played move to see its saved engine variations on the right. Arrow keys review earlier or later moves. Opening-book moves have no engine search.')
         details_layout.addWidget(QLabel('MOVES · click a move to review its saved analysis'))
         details_layout.addWidget(self.moves)
         games_group = QGroupBox('Games in this match'); games_group.setCheckable(True); games_group.setChecked(False)
-        games_layout = QVBoxLayout(games_group)
+        games_group.setObjectName('gamesDisclosure')
+        games_layout = QVBoxLayout(games_group);games_layout.setContentsMargins(6,3,6,3)
         self.games_body = QWidget(); games_body = QVBoxLayout(self.games_body)
         games_body.addWidget(self.game_filter)
         fit=button('Fit columns',self.games_table.fit_columns,games_body)
@@ -241,15 +254,16 @@ class Window(QMainWindow):
             self.archive_selector.addItem(f"{state['id'][:8]} · {len(state['games'])} games · {state['index']} completed", state['id'])
         library_layout.addWidget(self.archive_selector)
         button('Open selected tournament', self.open_archive, library_layout)
+        self.history_result_cards=ResultCards();library_layout.addWidget(self.history_result_cards)
         library_layout.addWidget(self.stats)
         self.tabs.addTab(library, 'Results & History')
         live = QWidget()
         live_layout = QVBoxLayout(live)
         self.analysis_heading = QLabel('Engine analysis')
         self.analysis_heading.setWordWrap(True)
-        self.analysis_heading.setStyleSheet('font-size: 19px; font-weight: bold; padding: 6px;')
+        self.analysis_heading.setObjectName('sectionTitle')
         live_layout.addWidget(self.analysis_heading)
-        hint = QLabel('Analysis is saved automatically for every engine move. Click a move on the left to review it, or hover a variation for a board preview.')
+        hint = QLabel('Click a played move to review. Hover a variation to preview.');hint.setObjectName('muted')
         hint.setWordWrap(True); live_layout.addWidget(hint)
         hint.setToolTip(f'Games and engine analysis are saved automatically in {self.db.path}. Close the app before backing up this file. Select a played move to view its saved variations here.')
         analysis_actions = QHBoxLayout()
@@ -258,8 +272,17 @@ class Window(QMainWindow):
         self.full_variations.setToolTip('By default show the first 6 half-moves (3 full moves). Enable to display the entire variation. Complete lines are always saved.')
         self.full_variations.toggled.connect(lambda full:[p.set_full(full) for p in self.live_panels])
         analysis_actions.addWidget(self.full_variations); live_layout.addLayout(analysis_actions)
+        self.onboarding=QFrame();self.onboarding.setObjectName('analysisCard')
+        guide=QVBoxLayout(self.onboarding);guide.setContentsMargins(22,24,22,24);guide.setSpacing(16)
+        welcome=QLabel('Your first engine match');welcome.setObjectName('sectionTitle');guide.addWidget(welcome)
+        for heading,body in [('01   Choose your engines','Click Load engine on each scorecard. Use two engines, or the same engine with different settings.'),('02   Set the playing conditions','Choose clocks or a search budget, an opening suite, and how many games to play.'),('03   Watch, compare, revisit','Follow live variations, pause whenever you need, and click played moves to inspect saved thinking.')]:
+            h=QLabel(heading);h.setObjectName('engineName');guide.addWidget(h)
+            b=QLabel(body);b.setWordWrap(True);b.setObjectName('muted');guide.addWidget(b)
+        begin=button('Set up a match',self.open_setup,guide);begin.setObjectName('primaryAction')
+        live_layout.addWidget(self.onboarding)
         self.saved_selectors = []
         self.saved_records = [[], []]
+        self.live_analysis_cards=[]
         self.live_panels = []
         self.live_labels = []
         self.live_positions = [None,None]
@@ -273,15 +296,18 @@ class Window(QMainWindow):
             panel.preview.connect(lambda rank, ply, s=side: self.live_preview(s, rank, ply))
             panel.preview_end.connect(self.clear_live_preview)
             label = QLabel('Live engine '+ 'AB'[side]); label.setWordWrap(True)
-            self.live_labels.append(label); live_layout.addWidget(label)
+            card=QFrame();card.setObjectName('analysisCard');card.setProperty('side','AB'[side])
+            card_layout=QVBoxLayout(card);card_layout.setContentsMargins(12,10,12,10);card_layout.setSpacing(8)
+            self.live_labels.append(label);label.setObjectName('analysisMetadata');card_layout.addWidget(label)
+            live_layout.addWidget(card);self.live_analysis_cards.append(card)
             selector = QComboBox(); selector.hide()
             selector.setToolTip('Review the final variations or an earlier saved depth/checkpoint for this exact playing search.')
             selector.currentIndexChanged.connect(lambda index, s=side:self.choose_saved(s,index))
-            self.saved_selectors.append(selector); live_layout.addWidget(selector)
+            self.saved_selectors.append(selector); card_layout.addWidget(selector)
             scroll = QScrollArea(); scroll.setWidgetResizable(True); scroll.setWidget(panel)
             scroll.setMinimumHeight(80); scroll.setMaximumHeight(215)
             panel.changed.connect(lambda p=panel,s=scroll:s.setFixedHeight(min(250,max(90,p.multipv*38+14))))
-            live_layout.addWidget(scroll)
+            card_layout.addWidget(scroll)
             self.live_panels.append(panel)
         self.preview_popup = QDialog(self, Qt.WindowType.ToolTip)
         self.preview_popup.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
@@ -292,10 +318,12 @@ class Window(QMainWindow):
         self.results_summary=QLabel('Match results appear here after a match starts.')
         self.results_summary.setWordWrap(True)
         self.results_summary.setStyleSheet('padding: 10px; font-size: 14px;')
-        live_layout.addWidget(self.results_summary)
+        self.results_summary.hide()
+        self.result_cards=ResultCards();live_layout.addWidget(self.result_cards)
         live_layout.addStretch(1)
         self.live_area = live
-        work_layout.insertWidget(0, live, 1)
+        self.live_scroller=QScrollArea();self.live_scroller.setObjectName('studioScroll');self.live_scroller.setWidgetResizable(True);self.live_scroller.setWidget(live)
+        work_layout.insertWidget(0,self.live_scroller,1)
         self.tabs.addTab(QLabel('Live and saved engine analysis is shown above.'), 'Live Match')
         self.candidate_views = CandidateViews()
         self.candidate_views.inspect.connect(self.inspect_candidate)
@@ -312,11 +340,13 @@ class Window(QMainWindow):
         self.splitter.addWidget(work)
         config_area = QWidget()
         config = QVBoxLayout(config_area)
-        config.addWidget(QLabel('MATCH SETUP'))
+        setup_title=QLabel('Set up an engine match');setup_title.setObjectName('sectionTitle');config.addWidget(setup_title)
+        setup_hint=QLabel('Choose your engines, set the playing conditions, then review and start.');setup_hint.setWordWrap(True);setup_hint.setObjectName('muted');config.addWidget(setup_hint)
         form = QFormLayout()
-        config.addLayout(form)
+        engine_group=QGroupBox('01  ENGINES & SEARCH LIMITS');engine_group.setLayout(form);config.addWidget(engine_group)
         self.limit_form=form
         self.engines = [QComboBox(), QComboBox()]
+        for engine_choice in self.engines:engine_choice.currentIndexChanged.connect(self.refresh_engine_names)
         form.addRow('Engine A', self.engines[0])
         form.addRow('Engine B', self.engines[1])
         management=QGroupBox('Manage saved engines (optional)')
@@ -330,7 +360,7 @@ class Window(QMainWindow):
         button('Unload Engine B',lambda:self.unload_engine(1),management_buttons)
         management_layout.addWidget(management_body);management_body.hide()
         management.toggled.connect(management_body.setVisible);config.addWidget(management)
-        self.welcome = QLabel('Start here: click Open engine file for A above and choose your engine’s .exe file. Test it, then save. You can use the same engine for both sides. No engines are included.')
+        self.welcome = QLabel('FIRST MATCH? Load an engine from each scorecard. You can use the same executable for both sides. Then choose a clock or fixed search budget here.')
         self.welcome.setWordWrap(True); self.welcome.setVisible(not self.profiles)
         config.insertWidget(1,self.welcome)
 
@@ -369,6 +399,7 @@ class Window(QMainWindow):
 
         self.ratio_button=button('Apply B:A node ratio', self.apply_ratio, config)
         self.swap_budget_button=button('Exchange A / B budgets', self.swap_budgets, config)
+        opening_group=QGroupBox('02  OPENINGS & MATCH RULES');form=QFormLayout(opening_group);config.addWidget(opening_group)
         self.book = QLineEdit()
         form.addRow('Opening suite', self.book)
         self.recent_books = QComboBox(); self.recent_books.addItem('Recent opening suites…')
@@ -407,7 +438,7 @@ class Window(QMainWindow):
         form.addRow('First checkpoint', self.checkpoint)
         self.summary = QLabel(); self.summary.setWordWrap(True)
         config.addWidget(self.summary)
-        button('Review & Start Match', self.start_match, config)
+        start_button=button('Review & start match', self.start_match, config);start_button.setObjectName('primaryAction')
         button('Pause match', self.tournament.pause, config)
         button('Resume persisted match', self.resume, config)
         advanced = QGroupBox('Advanced settings')
@@ -429,22 +460,25 @@ class Window(QMainWindow):
         adv_body.hide()
         advanced.toggled.connect(adv_body.setVisible)
         config.addWidget(advanced)
-        config.addWidget(QLabel('POSITION ANALYSIS'))
-        button('Compare This Position', self.refresh_analysis, config)
+        analysis_box=QGroupBox('Advanced position analysis');analysis_box.setCheckable(True);analysis_box.setChecked(False)
+        box_layout=QVBoxLayout(analysis_box);analysis_body=QWidget();analysis_config=QVBoxLayout(analysis_body)
+        box_layout.addWidget(analysis_body);analysis_body.hide();analysis_box.toggled.connect(analysis_body.setVisible)
+        config.addWidget(analysis_box)
+        button('Compare This Position', self.refresh_analysis, analysis_config)
         self.supp_pv = QSpinBox()
         self.supp_pv.setRange(1, 5)
         self.supp_pv.setValue(5)
-        config.addWidget(QLabel('Supplementary MultiPV (separate searches)'))
-        config.addWidget(self.supp_pv)
+        analysis_config.addWidget(QLabel('Supplementary MultiPV (separate searches)'))
+        analysis_config.addWidget(self.supp_pv)
         self.analysis_kind = QComboBox()
         self.analysis_kind.addItems(['Continuous history', 'Independent checkpoint searches'])
-        config.addWidget(self.analysis_kind)
-        button('Queue A + B supplementary searches', self.queue_analysis, config)
+        analysis_config.addWidget(self.analysis_kind)
+        button('Queue A + B supplementary searches', self.queue_analysis, analysis_config)
 
-        button('Cancel analysis queue', self.cancel_analysis, config)
+        button('Cancel analysis queue', self.cancel_analysis, analysis_config)
         queue_note = QLabel('Supplementary jobs run only while match is paused. Limits above apply; no expensive searches start automatically.')
         queue_note.setWordWrap(True)
-        config.addWidget(queue_note)
+        analysis_config.addWidget(queue_note)
         button('Export JSON / CSV / PGN…', self.export, config)
         config.addStretch()
         self.status = QLabel('Ready · add your UCI engines. No engines bundled.')
@@ -470,7 +504,11 @@ class Window(QMainWindow):
                               ('Right', lambda: self.navigate(self.view_game.cursor+1))]:
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.activated.connect(callback)
+        self.refresh_archives()
         self.match_changed()
+        self.refresh_engine_names()
+        for sequence,action in [('Ctrl+N',self.open_setup),('Ctrl+O',self.open_library),('Ctrl+Shift+S',self.save_match_file),('F9',self.return_live)]:
+            shortcut=QShortcut(QKeySequence(sequence),self);shortcut.activated.connect(action)
         if self.tournament.state:self.restore_live_analysis()
         from .help import install_tooltips
         install_tooltips(self)
@@ -486,6 +524,13 @@ class Window(QMainWindow):
             control.clear()
             control.addItems([p.name for p in self.profiles])
             control.setCurrentIndex(max(0, index))
+
+    def refresh_engine_names(self):
+        if self.tournament.state:return
+        for side,control in enumerate(self.engines):
+            index=control.currentIndex()
+            name=self.profiles[index].name if 0<=index<len(self.profiles) else 'Choose a UCI engine'
+            self.scoreboard.names[side].setText(name);self.scoreboard.names[side].setToolTip(name)
 
     def load_engine(self, side):
         path, _ = QFileDialog.getOpenFileName(self, 'Choose chess engine executable',
@@ -584,11 +629,13 @@ class Window(QMainWindow):
         else:self.resume()
 
     def change_workspace(self, index):
+        if index in self.nav_buttons:self.nav_buttons[index].setChecked(True)
         if index == 0:
             self.open_setup()
             self.workspace.setCurrentIndex(1)
             return
         self.live_area.setVisible(index == 1)
+        self.live_scroller.setVisible(index == 1)
         self.tabs.setVisible(index != 1)
         self.comparison.setVisible(index != 1)
         for control in self.analysis_controls:control.setVisible(index != 1)
@@ -656,7 +703,7 @@ class Window(QMainWindow):
         layout = QVBoxLayout(dialog)
         note = QLabel('Every tournament is saved automatically in your library. Save match creates a portable copy with its recorded engine analysis. Select a match to review its games, then click any move to see its variations.')
         note.setWordWrap(True); layout.addWidget(note)
-        matches = QListWidget(); layout.addWidget(matches,1)
+        matches = QListWidget();matches.setObjectName('matchLibrary'); layout.addWidget(matches,1)
         def refresh():
             self.refresh_archives(); matches.clear()
             for i in range(1,self.archive_selector.count()):
@@ -714,10 +761,12 @@ class Window(QMainWindow):
 
     def update_clocks(self):
         clock=self.tournament.clock
-        if not clock:self.clock_label.clear();return
+        if not clock:self.clock_label.clear();self.scoreboard.set_clocks('','');return
         def label(color):
             milliseconds=clock.left(color)//1_000_000
             return f'{milliseconds//60000:02d}:{milliseconds//1000%60:02d}.{milliseconds%1000//100}'
+        item=self.tournament.state['games'][self.tournament.state['index']]
+        self.scoreboard.set_clocks(label(1 if item['a_white'] else -1),label(-1 if item['a_white'] else 1))
         self.clock_label.setText(f'Live clocks · White {label(1)}   |   Black {label(-1)}')
 
     def limits(self):
@@ -831,6 +880,11 @@ class Window(QMainWindow):
 
     def match_changed(self):
         state = self.tournament.state
+        self.onboarding.setVisible(not bool(state))
+        self.result_cards.setVisible(bool(state))
+        for card in self.live_analysis_cards:card.setVisible(bool(state))
+        for control in (self.game_selector,self.previous_game_button,self.next_game_button):control.setVisible(bool(state))
+        self.setup_button.setText('New match…' if state else 'Set up match…')
         self.pause_button.setText('Pause' if self.tournament.active else 'Resume')
         self.save_match_button.setEnabled(bool(state))
         if state:
@@ -844,14 +898,16 @@ class Window(QMainWindow):
                     else:b_wins+=1
             self.score_label.setText(f"A {a_wins+draws/2:g}  —  {b_wins+draws/2:g} B   ·   A wins {a_wins} / draws {draws} / B wins {b_wins}")
             self.score_label.setToolTip(f"Engine A: {state['profiles'][0]['name']}\nEngine B: {state['profiles'][1]['name']}\nWins earn one point; draws earn half a point each. Scores follow engine A/B when colors swap.")
-            self.match_banner.setText(f"{mode} · {state.get('name','Engine match')} · {complete}/{len(state['games'])} games completed")
+            self.match_banner.setText(f"{mode}   •   {complete} of {len(state['games'])} games completed   •   Changes are saved automatically")
         if state:
             from .statistics import dashboard
             summary=dashboard(state)
+            self.scoreboard.update_match(state,summary);self.result_cards.update_match(summary);self.history_result_cards.update_match(summary)
             e=summary['elo']
             estimate='not enough games' if e is None else (f'{e:+.0f} Elo' if math.isfinite(e) else ('unbounded positive' if e>0 else 'unbounded negative'))
             self.score_label.setToolTip(self.score_label.toolTip()+'\nW/L/D = wins/losses/draws. Pair tallies use completed color-reversed two-game pairs only. Rough Elo uses all completed game points (A minus B), is unstable for small samples, and is not a formal rating. All wins or all losses have no finite estimate.')
             self.results_summary.setToolTip(self.score_label.toolTip())
+            self.result_cards.setToolTip(self.score_label.toolTip());self.history_result_cards.setToolTip(self.score_label.toolTip())
             self.results_summary.setText(f"Match results · W/L/D = wins/losses/draws\nGames W/L/D: A {summary['wins']}/{summary['losses']}/{summary['draws']} · B {summary['losses']}/{summary['wins']}/{summary['draws']}\nCompleted pairs W/L/D: A {summary['pair_wins']}/{summary['pair_losses']}/{summary['pair_draws']} · B {summary['pair_losses']}/{summary['pair_wins']}/{summary['pair_draws']} · Rough A−B: {estimate}")
         self.pause_button.setEnabled(bool(state and state['index'] < len(state['games'])))
         if state and state.get('review_only'):
@@ -859,7 +915,7 @@ class Window(QMainWindow):
             self.pause_button.setToolTip('This portable copy is open for review. To play a new match, select your local engines in Match setup.')
         else:
             self.pause_button.setToolTip('Pause engine searches and freeze both clocks. Resume continues the current local match.')
-        self.clock_label.setVisible(bool(self.tournament.clock))
+        self.clock_label.hide()
         self.adjudicate_button.setEnabled(bool(self.tournament.game and not self.tournament.game.outcome))
         if not state:
             self.games_table.hide();self.game_filter.hide()
@@ -879,7 +935,8 @@ class Window(QMainWindow):
         for row in rows:
             if not 0<=row<len(state['games']):continue
             item=state['games'][row]
-            self.game_selector.setItemText(row,f"Game {row+1} · Pair {item['pair']+1} · {item['result']} · {len(item['moves'])} plies")
+            status={'1-0':'White won','0-1':'Black won','1/2-1/2':'Draw'}.get(item['result'],'Playing' if row==state['index'] and self.tournament.active else ('Paused' if row==state['index'] else 'Pending'))
+            self.game_selector.setItemText(row,f"Game {row+1} · Pair {item['pair']+1} · {status}")
         self.game_selector.blockSignals(False)
         if self.follow_live:
             self.load_game(index)
@@ -931,7 +988,7 @@ class Window(QMainWindow):
                 self.saved_records[side] = [r for _,r in rows]
                 for label,_ in rows:selector.addItem(label)
                 color = 'White' if run['fen'].split()[1] == 'w' else 'Black'
-                self.live_labels[side].setText(f"Engine {'AB'[side]} · {run['profile']['name']} · {color} · saved search for ply {move_ply}")
+                self.live_labels[side].setText(f"ENGINE {'AB'[side]} · {color} · move {game.board.native.fullmove_number} · recorded search")
                 if not rows:self.live_labels[side].setText(self.live_labels[side].text()+' · no variations reported')
             else:
                 self.live_labels[side].setText(f"Engine {'AB'[side]} · no recorded search yet (opening-book moves have no engine analysis)")
@@ -946,7 +1003,7 @@ class Window(QMainWindow):
         self.workspace.setCurrentIndex(1)
         index = self.game_selector.currentIndex()
         if index < 0:return
-        self.analysis_heading.setText(f'Saved analysis · through ply {ply}')
+        self.analysis_heading.setText('Recorded analysis · select a depth below')
         self.load_saved_analysis(state['games'][index],ply)
 
     def restore_live_analysis(self):
@@ -996,7 +1053,7 @@ class Window(QMainWindow):
         self.live_search_ids[side] = context['id']
         self.live_positions[side] = game.board.fen()
         name = self.tournament.state['profiles'][side]['name']
-        self.live_labels[side].setText(f'Engine {"AB"[side]} · {name} · {"White" if game.board.turn == 1 else "Black"} · searching before ply {game.cursor+1}')
+        self.live_labels[side].setText(f'ENGINE {"AB"[side]} · {"White" if game.board.turn == 1 else "Black"} · move {game.board.native.fullmove_number} · preparing search')
 
     def live_info(self, info):
         game = self.tournament.game
@@ -1008,7 +1065,7 @@ class Window(QMainWindow):
         context = self.tournament.search.context
         if context and self.live_search_ids[side] != context['id']:self.live_started(context)
         name = self.tournament.state['profiles'][side]['name']
-        self.live_labels[side].setText(f"Engine {'AB'[side]} · {name} · {'White' if game.board.turn == 1 else 'Black'} · latest search before ply {game.cursor+1} · depth {info.get('depth',0)} · {info.get('nodes',0):,} nodes")
+        self.live_labels[side].setText(f"ENGINE {'AB'[side]} · {'White' if game.board.turn == 1 else 'Black'} · move {game.board.native.fullmove_number} · depth {info.get('depth',0)} · {info.get('nodes',0):,} nodes")
         if True:
             self.live_panels[side].set_multipv(self.tournament.state['multipv'])
             self.live_panels[side].update_line(info, game.board.turn)
@@ -1092,7 +1149,7 @@ class Window(QMainWindow):
         game = self.view_game
         last = game.moves[game.cursor-1] if game.cursor else None
         self.board.set_position(game.board.copy(), last)
-        self.position_label.setText(f"{'Live' if self.follow_live else 'Historical'} · ply {game.cursor} · "
+        self.position_label.setText(f"{'Live board' if self.follow_live else 'Reviewing'} · move {game.board.native.fullmove_number} · "
                                     f"{'White' if game.board.turn == 1 else 'Black'} to move")
         initial = Game(game.initial_fen).board.native
         offset = 0 if initial.turn else 1
