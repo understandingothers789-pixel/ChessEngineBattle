@@ -5,7 +5,13 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+- [Download Chess Engine Battle 0.5.0 for Windows — Match Studio redesign](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43149189544/artifacts/13912204199) — engine scorecards with live clocks and progress, focused analysis and result cards, clearer navigation, first-match guidance and numbered setup sections. Dark by default, with compact-window support and keyboard shortcuts. Existing matches, profiles, recorded analysis and tablebase setup are retained. 117 Windows tests passed, 1 optional real-engine test skipped; packaging and executable startup/render checks passed. [Source: b8cdf6c](https://github.com/understandingothers789-pixel/ChessEngineBattle/commit/b8cdf6c0f913471bee436e6b51751829f12fd2e9). Unsigned; GitHub sign-in required; Actions downloads expire.
+
 ### 0.5.0 — Match Studio
+
+![Match Studio dark interface](docs/images/match-studio-0.5.0.png)
+
+*UI preview rendered with deterministic demo engines; not a real engine-strength comparison.*
 
 The dark studio uses mint and blue engine scorecards with points, W/L/D and live
 clocks, a completion progress bar, focused analysis cards, and game/pair/Elo result
@@ -22,7 +28,7 @@ continues. **Match library** opens past tournaments. **Reset view** and shared
 
 Shortcuts: **Ctrl+N** setup, **Ctrl+O** library, **Ctrl+Shift+S** save copy,
 **F9** follow live. The workspace fits 1280×800 and grows at larger sizes; the
-analysis side scrolls when necessary. The 0.5.0 download follows Windows validation.
+analysis side scrolls when necessary. Windows packaging and startup validation passed; the download is above.
 
 
 - [Download Chess Engine Battle 0.4.2 for Windows — dark theme, reset and shared tablebases](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43132117205/artifacts/13905986693) — dark by default; Reset view; always-visible previous/next game picker; game and completed-pair W/L/D plus rough Elo difference; shared Syzygy folder setup for the next new match, preserving existing paths unless replaced. 116 Windows tests passed, 1 optional real-engine test skipped; packaging and startup/render checks passed. [Source: 188480e](https://github.com/understandingothers789-pixel/ChessEngineBattle/commit/188480ea88b7a7e6632015a63ef9002132c5ba49). Unsigned; GitHub sign-in required; Actions downloads expire. Tablebase configuration/protocol was tested with a fixture; actual five-piece probing requires the user's engine and tablebase files.
