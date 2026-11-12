@@ -9,9 +9,7 @@ New builds use **main**. Each entry below records the version, Windows download,
 and brief change notes; previous downloads remain available. See
 [CHANGELOG.md](CHANGELOG.md) for the concise version history.
 
-Version **0.3.8** is being validated: renamed to **Chess Engine Battle**, with
-`ChessEngineBattle.exe`, and consolidated the latest code and build notes onto
-main. Its download will be added after Windows packaging and startup checks pass.
+- [Download Chess Engine Battle 0.3.8 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43123994831/artifacts/13901768232) — renamed the app, dialogs and executable (`ChessEngineBattle.exe`); brought the latest features and build history onto **main**, which now handles future builds. Saved engines, settings and games remain available. 104 Windows tests and packaged startup/render checks passed; 1 optional real-engine test skipped. [Source: 40a8d01](https://github.com/understandingothers789-pixel/ChessEngineBattle/commit/40a8d010399c159cbae53c78382ffcdeab56be53). Unsigned. GitHub sign-in is required; Actions downloads expire.
 
 Historical downloads through 0.3.7 use the previous executable name
 `NocturneBattle.exe`. The existing library location is retained across the rename
