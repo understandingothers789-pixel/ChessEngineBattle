@@ -13,7 +13,11 @@ def install_tooltips(root):
                     'Unload Engine A':'Pause first. Disconnect Engine A while keeping saved settings and history.',
                     'Unload Engine B':'Pause first. Disconnect Engine B while keeping saved settings and history.',
                     'Final result':'Show the engine’s final reported result, separately from historical checkpoints.',
-                    'Original thinking':'Show the search recorded as the source of the selected move; legacy attribution may be uncertain.',
+                    'Review selected move’s analysis':'Show the engine variations saved when this move was played. Select an earlier depth to review how the search changed.',
+                    'Pause':'Stop searches and freeze both game clocks. Resume continues the same match.',
+                    'Resume':'Continue the saved match from its current position with its remaining clocks.',
+                    'Match setup':'Open match settings in a separate window. The board and engine analysis stay visible.',
+                    'Follow live game':'Stop reviewing history and show the running board and latest engine variations.',
                     'Return to Live':'Follow the running game again without interrupting engine searches.'}.get(text,text+'.')
         elif isinstance(widget,QComboBox):
             choices=[widget.itemText(i) for i in range(min(widget.count(),8))]

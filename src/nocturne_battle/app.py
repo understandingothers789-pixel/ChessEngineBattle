@@ -6,12 +6,12 @@ import math
 from pathlib import Path
 import sys
 
-from PySide6.QtCore import Qt, QStandardPaths, Signal, QTimer
-from PySide6.QtGui import QColor, QPainter, QPen, QKeySequence, QShortcut
+from PySide6.QtCore import Qt, QStandardPaths, Signal, QTimer, QPoint
+from PySide6.QtGui import QColor, QPainter, QPen, QKeySequence, QShortcut, QCursor
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QFormLayout, QLabel, QPushButton, QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox, QCheckBox,
     QSplitter, QScrollArea, QFileDialog, QMessageBox, QDialog, QDialogButtonBox,
-    QGroupBox, QTabWidget, QTableWidget, QTableWidgetItem, QPlainTextEdit, QTextBrowser, QListWidget,QListWidgetItem)
+    QGroupBox, QSizePolicy, QTabWidget, QTableWidget, QTableWidgetItem, QPlainTextEdit, QTextBrowser, QListWidget,QListWidgetItem)
 from nocturne.core.game import Game
 from nocturne.core.board import Board
 from nocturne.engine.uci_types import score_label
@@ -50,7 +50,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.3.8 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.3.9 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -74,9 +74,13 @@ class Window(QMainWindow):
         title.setStyleSheet('font-size: 22px; padding: 12px;')
         outer.addWidget(title)
         quick = QHBoxLayout()
-        self.load_a_button = button('Open engine file for A…', lambda:self.load_engine(0), quick)
-        self.load_b_button = button('Open engine file for B…', lambda:self.load_engine(1), quick)
-        button('Match setup',lambda:self.workspace.setCurrentIndex(0),quick)
+        self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
+        self.load_b_button = button('Load engine B…', lambda:self.load_engine(1), quick)
+        for control in (self.load_a_button,self.load_b_button):
+            control.setToolTip('Choose a local UCI engine executable, such as Stockfish. Test it and save its settings to use it in matches.')
+        button('Match setup…', self.open_setup, quick)
+        self.pause_button = button('Pause', self.toggle_pause, quick)
+        self.pause_button.setToolTip('Pause engine searches and freeze both clocks. Click Resume to continue the current match.')
         self.adjudicate_button = button('Adjudicate game…', self.adjudicate_game, quick)
         outer.addLayout(quick)
         self.workspace = QComboBox()
@@ -96,6 +100,7 @@ class Window(QMainWindow):
         board_row = QHBoxLayout()
         self.board = BoardWidget()
         self.board.interactive = False
+        self.board.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.evalbar = EvaluationBar()
         self.evalbar.board_view = self.board
         board_row.addWidget(self.board, 1)
@@ -108,7 +113,7 @@ class Window(QMainWindow):
         button('⏭', lambda: self.navigate(len(self.view_game.moves)), nav)
         button('Flip', self.flip, nav)
         button('Return to Live', self.return_live, nav)
-        button('Original thinking', self.original_thinking, board_layout)
+        button('Review selected move’s analysis', lambda:self.review_move(self.view_game.cursor), board_layout)
         board_layout.addLayout(nav)
         self.game_selector = QComboBox()
         self.game_selector.currentIndexChanged.connect(self.select_game)
@@ -116,17 +121,27 @@ class Window(QMainWindow):
         self.game_filter = QLineEdit()
         self.game_filter.setPlaceholderText('Filter games by engine, pair, result or status')
         self.game_filter.textChanged.connect(self.filter_games)
-        board_layout.addWidget(self.game_filter)
+
         self.games_table = GameBrowser()
-        self.games_table.setMaximumHeight(180)
+        self.games_table.setMaximumHeight(130)
         self.games_table.clicked.connect(lambda index:self.table_game(index.row(),index.column()))
-        board_layout.addWidget(self.games_table)
+
         self.moves = QTextBrowser()
         self.moves.setOpenLinks(False)
         self.moves.anchorClicked.connect(lambda url: self.inspect_move(int(url.toString())))
         self.moves.setReadOnly(True)
-        self.moves.setMaximumHeight(100)
+        self.moves.setMinimumHeight(85)
+        self.moves.setMaximumHeight(120)
+        self.moves.setToolTip('Click any played move to see its saved engine variations on the right. Arrow keys review earlier or later moves. Opening-book moves have no engine search.')
+        board_layout.addWidget(QLabel('MOVES · click a move to review its saved analysis'))
         board_layout.addWidget(self.moves)
+        games_group = QGroupBox('Games in this match'); games_group.setCheckable(True); games_group.setChecked(False)
+        games_layout = QVBoxLayout(games_group)
+        self.games_body = QWidget(); games_body = QVBoxLayout(self.games_body)
+        games_body.addWidget(self.game_filter); games_body.addWidget(self.games_table)
+        games_layout.addWidget(self.games_body); self.games_body.hide()
+        games_group.toggled.connect(self.games_body.setVisible)
+        board_layout.addWidget(games_group)
         self.splitter.addWidget(board_area)
         work = QWidget()
         work_layout = QVBoxLayout(work)
@@ -148,6 +163,7 @@ class Window(QMainWindow):
         compact=QCheckBox('Compact')
         compact.toggled.connect(lambda enabled:[p.details.setVisible(not enabled) for p in self.panels])
         row.addWidget(compact)
+        self.analysis_controls = [self.perspective,self.dual,self.link,self.ratio,compact]
         work_layout.addLayout(row)
         self.tabs = QTabWidget()
         self.panels = [AnalysisPanel('ENGINE A'), AnalysisPanel('ENGINE B')]
@@ -162,7 +178,7 @@ class Window(QMainWindow):
         evo_layout = QVBoxLayout(evolution_area)
         self.graph = Evolution()
         metric=QComboBox();metric.addItems(['Evaluation','Depth'])
-        metric.currentIndexChanged.connect(lambda index:(setattr(self.graph,'metric','depth' if index else 'evaluation'),self.graph.update()))
+        metric.currentIndexChanged.connect(lambda index:(setattr(self.graph,'metric_name','depth' if index else 'evaluation'),self.graph.update()))
         evo_layout.addWidget(metric)
         self.graph.point_selected.connect(self.graph_select)
         evo_layout.addWidget(self.graph)
@@ -195,6 +211,15 @@ class Window(QMainWindow):
         self.tabs.addTab(library, 'Results & History')
         live = QWidget()
         live_layout = QVBoxLayout(live)
+        self.analysis_heading = QLabel('ENGINE ANALYSIS · live and saved variations')
+        self.analysis_heading.setStyleSheet('font-size: 19px; font-weight: bold; padding: 6px;')
+        live_layout.addWidget(self.analysis_heading)
+        hint = QLabel('Analysis is saved automatically for every engine move. Click a move on the left to review it, or hover a variation for a board preview.')
+        hint.setWordWrap(True); live_layout.addWidget(hint)
+        hint.setToolTip(f'Games and engine analysis are saved automatically in {self.db.path}. Close the app before backing up this file. Select a played move to view its saved variations here.')
+        button('Follow live game', self.return_live, live_layout)
+        self.saved_selectors = []
+        self.saved_records = [[], []]
         self.live_panels = []
         self.live_labels = []
         self.live_positions = [None,None]
@@ -209,13 +234,22 @@ class Window(QMainWindow):
             panel.preview_end.connect(self.clear_live_preview)
             label = QLabel('Live engine '+ 'AB'[side]); label.setWordWrap(True)
             self.live_labels.append(label); live_layout.addWidget(label)
+            selector = QComboBox(); selector.hide()
+            selector.setToolTip('Review the final variations or an earlier saved depth/checkpoint for this exact playing search.')
+            selector.currentIndexChanged.connect(lambda index, s=side:self.choose_saved(s,index))
+            self.saved_selectors.append(selector); live_layout.addWidget(selector)
             scroll = QScrollArea(); scroll.setWidgetResizable(True); scroll.setWidget(panel)
             live_layout.addWidget(scroll, 1)
             self.live_panels.append(panel)
+        self.preview_popup = QDialog(self, Qt.WindowType.ToolTip)
+        self.preview_popup.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        popup_layout = QVBoxLayout(self.preview_popup); popup_layout.setContentsMargins(4,4,4,4)
         self.live_preview_board = BoardWidget(); self.live_preview_board.interactive = False
         self.live_preview_board.setFixedSize(270, 270); self.live_preview_board.hide()
-        live_layout.addWidget(self.live_preview_board, 0, Qt.AlignmentFlag.AlignHCenter)
-        self.tabs.addTab(live, 'Live Match')
+        popup_layout.addWidget(self.live_preview_board)
+        self.live_area = live
+        work_layout.insertWidget(0, live, 1)
+        self.tabs.addTab(QLabel('Live and saved engine analysis is shown above.'), 'Live Match')
         self.candidate_views = CandidateViews()
         self.candidate_views.inspect.connect(self.inspect_candidate)
         self.tabs.addTab(self.candidate_views, 'Candidate rankings')
@@ -314,6 +348,7 @@ class Window(QMainWindow):
         self.play_pv = QSpinBox()
         self.play_pv.setRange(1, 5)
         self.play_pv.setValue(3)
+        self.play_pv.setToolTip('Number of candidate variations each playing engine searches and saves for every move. More variations can reduce playing strength at the same time or node budget. Requires engine MultiPV support.')
         form.addRow('Playing MultiPV', self.play_pv)
         self.auto_draw = QCheckBox('Automatic draw by evaluation agreement')
         self.auto_draw.setChecked(True)
@@ -325,7 +360,7 @@ class Window(QMainWindow):
         form.addRow('First checkpoint', self.checkpoint)
         self.summary = QLabel(); self.summary.setWordWrap(True)
         config.addWidget(self.summary)
-        button('Review & Start Match', self.start_match, quick)
+        button('Review & Start Match', self.start_match, config)
         button('Pause match', self.tournament.pause, config)
         button('Resume persisted match', self.resume, config)
         advanced = QGroupBox('Advanced settings')
@@ -372,19 +407,24 @@ class Window(QMainWindow):
         scroll.setWidgetResizable(True)
         scroll.setWidget(config_area)
         scroll.setMinimumWidth(290)
-        self.splitter.addWidget(scroll)
-        self.splitter.setSizes([600, 850, 330])
+        self.setup_dialog = QDialog(self); self.setup_dialog.setWindowTitle('Match setup')
+        self.setup_dialog.resize(680, 800)
+        setup_layout = QVBoxLayout(self.setup_dialog); setup_layout.addWidget(scroll)
+        button('Done', self.setup_dialog.hide, setup_layout)
+        self.splitter.setSizes([750, 850])
         self.config_scroll = scroll
         self.workspace.currentIndexChanged.connect(self.change_workspace)
         self.populate_profiles()
         self.restore_settings()
-        self.change_workspace(self.workspace.currentIndex())
+        self.workspace.setCurrentIndex(1)
+        self.change_workspace(1)
         self.board.wheel_navigated.connect(lambda delta: self.navigate(self.view_game.cursor+delta))
         for key, callback in [('Left', lambda: self.navigate(self.view_game.cursor-1)),
                               ('Right', lambda: self.navigate(self.view_game.cursor+1))]:
             shortcut = QShortcut(QKeySequence(key), self)
             shortcut.activated.connect(callback)
         self.match_changed()
+        if self.tournament.state:self.restore_live_analysis()
         from .help import install_tooltips
         install_tooltips(self)
 
@@ -459,13 +499,25 @@ class Window(QMainWindow):
         a,b = [c.text() for c in self.budgets]
         self.budgets[0].setText(b); self.budgets[1].setText(a)
 
+    def open_setup(self):
+        self.setup_dialog.show(); self.setup_dialog.raise_(); self.setup_dialog.activateWindow()
+
+    def toggle_pause(self):
+        if self.tournament.active:self.tournament.pause()
+        else:self.resume()
+
     def change_workspace(self, index):
-        self.config_scroll.setVisible(index == 0)
-        self.tabs.parentWidget().setVisible(index != 0)
-        if index == 1: self.tabs.setCurrentIndex(3)
-        if index == 2: self.tabs.setCurrentIndex(0)
-        if index == 3: self.tabs.setCurrentIndex(2)
-        if index == 4: self.tabs.setCurrentIndex(5)
+        if index == 0:
+            self.open_setup()
+            self.workspace.setCurrentIndex(1)
+            return
+        self.live_area.setVisible(index == 1)
+        self.tabs.setVisible(index != 1)
+        self.comparison.setVisible(index != 1)
+        for control in self.analysis_controls:control.setVisible(index != 1)
+        if index == 2:self.tabs.setCurrentIndex(0)
+        if index == 3:self.tabs.setCurrentIndex(2)
+        if index == 4:self.tabs.setCurrentIndex(5)
 
     def open_archive(self):
         if self.tournament.active:
@@ -586,6 +638,7 @@ class Window(QMainWindow):
             self.tournament.save()
             self.follow_live = True
             self.save_settings()
+            self.setup_dialog.hide()
             self.workspace.setCurrentIndex(1)
             self.tournament.resume()
         except (ValueError, OSError) as exc:
@@ -625,6 +678,8 @@ class Window(QMainWindow):
 
     def match_changed(self):
         state = self.tournament.state
+        self.pause_button.setText('Pause' if self.tournament.active else 'Resume')
+        self.pause_button.setEnabled(bool(state and state['index'] < len(state['games'])))
         self.adjudicate_button.setEnabled(bool(self.tournament.game and not self.tournament.game.outcome))
         if not state:
             self.games_table.hide();self.game_filter.hide()
@@ -641,6 +696,7 @@ class Window(QMainWindow):
         self.game_selector.blockSignals(False)
         if self.follow_live:
             self.load_game(index)
+            if not self.tournament.active and not any(p.lines for p in self.live_panels):self.restore_live_analysis()
         self.games_table.games.update_state(state,self.tournament.active,{state['index'],getattr(self,'_browser_index',state['index'])})
         self._browser_index=state['index']
         from .statistics import summarize
@@ -651,7 +707,71 @@ class Window(QMainWindow):
         self.status.setText(f"{'Running' if self.tournament.active else 'Paused / complete'} · game {index+1}/{len(state['games'])}")
 
     def clear_live_preview(self):
-        self.live_preview_board.clear_preview(); self.live_preview_board.hide()
+        self.live_preview_board.clear_preview(); self.preview_popup.hide()
+
+    def choose_saved(self, side, index):
+        if not 0 <= index < len(self.saved_records[side]):return
+        record = self.saved_records[side][index]
+        panel = self.live_panels[side]; panel.clear()
+        lines = record.get('lines', {})
+        panel.set_multipv(max([int(k) for k in lines] or [1]))
+        for line in lines.values():panel.update_line(line, self.live_games[side].board.turn)
+
+    def load_saved_analysis(self, item, ply):
+        runs = {}
+        for key, link in sorted(item.get('move_searches', {}).items(), key=lambda x:int(x[0]), reverse=True):
+            if int(key) > ply:continue
+            run = self.db.search_run(link['search_run_id'])
+            if not run:continue
+            side = 0 if (run['fen'].split()[1] == 'w') == item['a_white'] else 1
+            if side not in runs:runs[side] = (int(key),run)
+            if len(runs) == 2:break
+        self.clear_live_preview()
+        for side in range(2):
+            selector = self.saved_selectors[side]
+            selector.blockSignals(True); selector.clear()
+            self.live_panels[side].clear(); self.live_games[side] = None
+            self.saved_records[side] = []
+            if side in runs:
+                move_ply, run = runs[side]
+                game = Game(run['initial_fen'])
+                for uci in run['moves']:game.play(game.board.parse_uci(uci))
+                game.id = run['game']; self.live_games[side] = game
+                final = run.get('final_result', {})
+                rows = [('Final variations', final)] if final.get('lines') else []
+                rows += [(f"Depth {r['depth']} · saved variations", r) for r in final.get('depth_history', [])]
+                rows += [(f"Checkpoint {r['actual']:,} nodes", r) for r in self.db.records(game,Profile(**run['profile'])) if r['id'] == run['id']]
+                self.saved_records[side] = [r for _,r in rows]
+                for label,_ in rows:selector.addItem(label)
+                color = 'White' if run['fen'].split()[1] == 'w' else 'Black'
+                self.live_labels[side].setText(f"Engine {'AB'[side]} · {run['profile']['name']} · {color} · saved search for ply {move_ply}")
+                if not rows:self.live_labels[side].setText(self.live_labels[side].text()+' · no variations reported')
+            else:
+                self.live_labels[side].setText(f"Engine {'AB'[side]} · no recorded search yet (opening-book moves have no engine analysis)")
+            selector.setVisible(bool(self.saved_records[side]))
+            selector.setCurrentIndex(0); selector.blockSignals(False)
+            self.choose_saved(side,0)
+
+    def review_move(self, ply):
+        state = self.tournament.state
+        if not state:return
+        self.follow_live = False
+        self.workspace.setCurrentIndex(1)
+        index = self.game_selector.currentIndex()
+        if index < 0:return
+        self.analysis_heading.setText(f'SAVED ANALYSIS · through ply {ply} · select a depth below')
+        self.load_saved_analysis(state['games'][index],ply)
+
+    def restore_live_analysis(self):
+        state = self.tournament.state
+        if not state:return
+        item = state['games'][min(state['index'],len(state['games'])-1)]
+        self.load_saved_analysis(item,len(item['moves']))
+        self.analysis_heading.setText('LIVE ENGINE ANALYSIS · latest search from each engine')
+        if self.tournament.game:
+            self._live_game_id = self.tournament.game.id
+        self.live_search_ids = [None, None]
+        if self.tournament.search.context:self.live_started(self.tournament.search.context, force=True)
 
     def live_preview(self, side, rank, ply):
         game = self.live_games[side]
@@ -664,11 +784,16 @@ class Window(QMainWindow):
         except ValueError:return
         self.live_preview_board.show()
         self.live_preview_board.show_preview(board, last, f'Engine {"AB"[side]} · PV{rank} · ply {ply}')
+        point = QCursor.pos()+QPoint(20,20)
+        screen = QApplication.screenAt(point) or QApplication.primaryScreen()
+        area = screen.availableGeometry()
+        self.preview_popup.move(min(point.x(),area.right()-280),min(point.y(),area.bottom()-280))
+        self.preview_popup.show()
 
-    def live_started(self, context):
+    def live_started(self, context, force=False):
         # Clear even when a restarted search uses the same FEN as a previous run.
         game = self.tournament.game
-        if not game:return
+        if not game or not self.follow_live:return
         item = self.tournament.state['games'][self.tournament.state['index']]
         if getattr(self, '_live_game_id', None) != game.id:
             for panel in self.live_panels:panel.clear()
@@ -676,7 +801,9 @@ class Window(QMainWindow):
             self.live_games = [None, None]; self.live_search_ids = [None, None]
             self._live_game_id = game.id
         side = 0 if (game.board.turn == 1) == item['a_white'] else 1
-        if self.live_search_ids[side] == context['id']:return
+        if self.live_search_ids[side] == context['id'] and not force:return
+        self.analysis_heading.setText('LIVE ENGINE ANALYSIS · latest search from each engine')
+        for selector in self.saved_selectors:selector.hide()
         self.live_panels[side].clear()
         self.live_games[side] = Game(game.board.fen())
         self.live_search_ids[side] = context['id']
@@ -686,7 +813,7 @@ class Window(QMainWindow):
 
     def live_info(self, info):
         game = self.tournament.game
-        if not game or not self.tournament.active:
+        if not game or not self.tournament.active or not self.follow_live:
             return
         item = self.tournament.state['games'][self.tournament.state['index']]
         side = 0 if ((game.board.turn == 1) == item['a_white']) else 1
@@ -724,15 +851,16 @@ class Window(QMainWindow):
             self.game_selector.blockSignals(False)
             self.follow_live = False
             self.load_game(index)
+            self.review_move(self.view_game.cursor)
 
     def navigate(self, cursor):
         self.follow_live = False
         self.view_game.navigate(max(0, min(len(self.view_game.moves), cursor)))
         self.show_game()
+        self.review_move(self.view_game.cursor)
 
     def inspect_move(self, ply):
         self.navigate(ply)
-        self.original_thinking()
 
     def original_thinking(self):
         ply = self.view_game.cursor
@@ -767,7 +895,11 @@ class Window(QMainWindow):
 
     def return_live(self):
         self.follow_live = True
+        self.workspace.setCurrentIndex(1)
+        for selector in self.saved_selectors:selector.hide()
+        self._live_game_id = None
         self.match_changed()
+        self.restore_live_analysis()
 
     def show_game(self):
         game = self.view_game
@@ -775,7 +907,17 @@ class Window(QMainWindow):
         self.board.set_position(game.board.copy(), last)
         self.position_label.setText(f"{'Live' if self.follow_live else 'Historical'} · ply {game.cursor} · "
                                     f"{'White' if game.board.turn == 1 else 'Black'} to move")
-        self.moves.setHtml(' '.join(f'<a href="{i+1}" style="color:{"#72c9bd" if i+1 == game.cursor else "#aab6c3"}">{i//2+1 if i%2==0 else ""} {text}</a>' for i,text in enumerate(game.sans)))
+        initial = Game(game.initial_fen).board.native
+        offset = 0 if initial.turn else 1
+        cells = []
+        for i,text in enumerate(game.sans):
+            number = initial.fullmove_number + (i+offset)//2
+            prefix = f'{number}.' if (i+offset)%2 == 0 else (f'{number}…' if i == 0 else '')
+            color = '#72c9bd' if i+1 == game.cursor else '#d3dde8'
+            anchor = ' id="selected"' if i+1 == game.cursor else ''
+            cells.append(f'<a{anchor} href="{i+1}" style="color:{color}; text-decoration:none;">{prefix} {text}</a>')
+        self.moves.setHtml('<div style="font-size:15px; line-height:180%">'+' &nbsp; '.join(cells)+'</div>')
+        self.moves.scrollToAnchor('selected')
         for panel in self.panels:
             panel.pin_control.setChecked(False)
             panel.pinned = False
@@ -1034,7 +1176,7 @@ class Window(QMainWindow):
         if state.get('geometry'): self.restoreGeometry(bytes.fromhex(state['geometry']))
         self.workspace.setCurrentIndex(state.get('workspace',0))
         self.silence_timeout.setValue(state.get('silence_timeout',120))
-        self.splitter.setSizes(state['splitter'])
+        self.splitter.setSizes(state['splitter'][:2] if len(state['splitter']) == 2 else [750,850])
         self.mode.setCurrentText(state['mode'])
         for control,value in zip(self.clock_bases,state.get('clock_bases',[10/60,10/60])):control.setValue(value)
         for control,value in zip(self.clock_increments,state.get('clock_increments',[0.1,0.1])):control.setValue(value)
@@ -1058,6 +1200,8 @@ class Window(QMainWindow):
             event.accept()
             return
         self._closed = True
+        self.setup_dialog.close()
+        self.preview_popup.close()
         self.save_settings()
         if self.tournament.state:
             self.tournament.pause()

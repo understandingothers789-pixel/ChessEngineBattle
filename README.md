@@ -5,6 +5,26 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+### 0.3.9 — clearer match workspace and saved variations
+
+Board and moves stay on the left; analysis stays on the upper right. **Match
+setup…** opens a separate window. **Pause/Resume** is always in the top bar.
+Click a move or use the arrow keys to review its saved analysis. Each engine panel
+shows the latest recorded search through that move (the engines search alternating
+positions). Choose **Final variations**, an earlier **Depth**, or a stored node
+checkpoint, then hover a variation move for a board preview. **Follow live game**
+returns to the current game. Reviewing history does not pause a running match.
+
+Final lines are stored automatically for every engine move. This version also
+stores complete MultiPV sets at reported depths 1–128; incomplete/mixed-depth sets
+are not presented as complete. Older games retain whatever final lines and node
+checkpoints were recorded at the time; missing depth history cannot be recovered.
+Book moves have no engine search. Analysis lives with your games in `battle.sqlite`
+in the existing library folder described under Persistence and exports.
+
+The Windows 0.3.9 download will be added after validation succeeds.
+
+
 New builds use **main**. Each entry below records the version, Windows download,
 and brief change notes; previous downloads remain available. See
 [CHANGELOG.md](CHANGELOG.md) for the concise version history.
@@ -152,8 +172,10 @@ Each engine retains its latest playing-search candidate lines, labeled with the
 engine, color, ply, depth and nodes. Hover PV moves to preview on a separate board
 using that search's original position. The two engines normally search alternating
 positions, so these are not simultaneous analyses of the same position.
-Click a played move to open its exact recorded final search in Search comparison;
-short searches retain final MultiPV lines even below the first checkpoint.
+Click a played move to show saved variations directly in the right-hand analysis
+panels. Use the depth selectors to review earlier variations. Short searches retain
+final MultiPV lines even below the first checkpoint. Advanced comparison and
+node-history tools remain available in the workspace selector.
 
 **Adjudicate game…** in the top bar offers Draw, White wins, Black wins, and
 evaluation agreement. Agreement defaults to a draw when both scores are within

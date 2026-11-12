@@ -62,6 +62,7 @@ class Search(QObject):
         if identity != profile.identity:
             raise ValueError('Engine executable changed; revalidate its profile')
         self.collector = Checkpoints(start, maximum)
+        self.depth_history = {}
         self.required = min(multipv, len(list(game.board.legal_moves())))
         self.context = self.db.begin(game, profile, limit, multipv, provenance, tournament)
         self.context['kind'] = kind
@@ -118,6 +119,11 @@ class Search(QObject):
             return
         if self.silence_timeout_ms > 0: self.watchdog.start(self.silence_timeout_ms)
         snapshot = self.collector.observe(validated, self.required)
+        depth = validated.get('depth')
+        if (isinstance(depth,int) and 1 <= depth <= 128 and
+            all(rank in self.collector.lines and self.collector.lines[rank].get('depth') == depth for rank in range(1,self.required+1))):
+            from copy import deepcopy
+            self.depth_history[depth] = dict(depth=depth, lines=deepcopy(self.collector.lines))
         if snapshot and self.context['kind'] == 'continuous':
             try:
                 self.db.capture(self.context, snapshot)
@@ -144,6 +150,7 @@ class Search(QObject):
             if kind == 'result':
                 # Persist final ranks even when a short search never reaches a checkpoint.
                 data['lines'] = dict(self.collector.lines)
+                data['depth_history'] = list(self.depth_history.values())
             complete = all(rank in self.collector.lines for rank in range(1, self.required+1))
             status = ('completed' if complete else 'completed-incomplete') if kind == 'result' else 'failed'
             if kind == 'result' and context['kind'] == 'independent':

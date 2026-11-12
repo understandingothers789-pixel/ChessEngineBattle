@@ -3,6 +3,18 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.3.9
+
+- Put the board and readable move list on the left and engine analysis on the
+  upper right. Match setup opens separately; Pause/Resume stays in the top bar.
+- Click any move to review its final MultiPV lines, earlier saved depths and
+  checkpoints. Review stays fixed while the match continues. Follow live game
+  returns to the current search. Hover variations for a floating board preview.
+- Save complete MultiPV sets at reported search depths for new games, including
+  short searches; restore saved analysis when reopening the app.
+- Replace “Original thinking” with clear review wording, improve tooltips, and
+  collapse the game list to leave more room for the board.
+
 ## 0.3.8
 
 - Renamed the app to Chess Engine Battle, including its window, dialogs,

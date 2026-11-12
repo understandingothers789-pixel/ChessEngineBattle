@@ -54,7 +54,8 @@ for raw in sys.stdin:
                     pv.append(reply.uci())
                     after.push(reply)
                 score = 25-rank if score_override is None else score_override
-                print(f'info depth 12 seldepth 18 multipv {rank} score cp {score} nodes {nodes} nps 2000000 time 100 pv {" ".join(pv)}', flush=True)
+                depth = {500_000:4,1_100_000:8,5_000_000:10,8_100_000:12}[nodes] if '--depth-evolution' in sys.argv else 12
+                print(f'info depth {depth} seldepth 18 multipv {rank} score cp {score} nodes {nodes} nps 2000000 time 100 pv {" ".join(pv)}', flush=True)
         print('bestmove ' + (moves[0].uci() if moves else '0000'), flush=True)
     elif line == 'stop':
         moves = sorted(board.legal_moves, key=lambda m: m.uci())

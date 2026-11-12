@@ -129,7 +129,7 @@ def test_live_info_does_not_mutate_historical_candidates(qtbot,db,profile):
     window.follow_live = False
     line = dict(window.panels[0].panel.lines[1]); line['score_value'] = 999
     window.live_info(line)
-    assert window.live_panels[0].lines[1]['score_value'] == 999
+    assert not window.live_panels[0].lines  # Reviewing history freezes the visible saved analysis.
     saved_score = window.evalbar.score
     window.live_info(dict(line,score=555))
     assert window.evalbar.score == saved_score

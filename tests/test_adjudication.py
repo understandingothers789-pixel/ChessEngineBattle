@@ -89,8 +89,8 @@ def test_click_move_opens_final_thinking_below_first_checkpoint(qtbot,db,profile
     assert w.live_preview_board.preview_board is not None
     w.clear_live_preview()
     w.inspect_move(1)
-    assert w.workspace.currentIndex()==2 and w.view_game.cursor==0
-    assert w.panels[0].record['final']
-    assert len(w.panels[0].record['lines'])==3
-    assert w.panels[0].record['final_result']['move']=='a2a3'
+    assert w.workspace.currentIndex()==1 and w.view_game.cursor==1
+    assert w.saved_selectors[0].currentText() == 'Final variations'
+    assert len(w.live_panels[0].lines)==3
+    assert w.saved_records[0][0]['move']=='a2a3'
     w.close()

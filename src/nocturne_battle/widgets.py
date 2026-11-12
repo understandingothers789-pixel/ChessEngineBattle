@@ -364,7 +364,7 @@ class Evolution(QWidget):
         self.series = [[], []]
         self.enabled = [True, True]
         self.points = []
-        self.metric = 'evaluation'
+        self.metric_name = 'evaluation'
         self.setMouseTracking(True)
 
     def mouseMoveEvent(self,event):
@@ -378,7 +378,7 @@ class Evolution(QWidget):
         p = QPainter(self)
         p.fillRect(self.rect(), QColor('#1b2028'))
         p.setPen(QColor('#bfc8ce'))
-        p.drawText(12, 20, ('Depth' if self.metric == 'depth' else 'Evaluation (White cp)')+' / log₂ checkpoint · click a point')
+        p.drawText(12, 20, ('Depth' if self.metric_name == 'depth' else 'Evaluation (White cp)')+' / log₂ checkpoint · click a point')
         rows = [r for series in self.series for r in series]
         if not rows:
             p.drawText(12, 65, 'Stored search history will appear here. Mate/missing/bound scores are excluded.')
@@ -395,12 +395,12 @@ class Evolution(QWidget):
             previous_id = None
             for r in sorted(series, key=lambda r: (r['timestamp'], r['requested'])):
                 line = r['lines'].get('1', {})
-                if self.metric != 'depth' and (line.get('score_type') != 'cp' or line.get('bound', 'exact') != 'exact'):
+                if self.metric_name != 'depth' and (line.get('score_type') != 'cp' or line.get('bound', 'exact') != 'exact'):
                     previous = None
                     continue
                 x = 35 + (math.log2(r['requested'])-lo)/max(1, hi-lo)*(self.width()-70)
                 perspective = 1 if r['fen'].split()[1] == 'w' else -1
-                value = line.get('depth',0)*4 if self.metric == 'depth' else line['score_value'] * perspective
+                value = line.get('depth',0)*4 if self.metric_name == 'depth' else line['score_value'] * perspective
                 y = self.height()/2 - max(-500, min(500, value))/500*(self.height()/2-45)
                 from PySide6.QtCore import QPointF
                 point = QPointF(x, y)
