@@ -3,6 +3,12 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.5.2 rebuild 3 — recreated from 0.5.1
+
+- Restore application and packaging from exact 0.5.1 source, then reapply only
+  best-line history and version labels. Restore the original 0.5.1 workflow.
+- File revision 0.5.2.2. Still unsigned; Smart App Control acceptance unverified.
+
 ## 0.5.2 rebuild 2
 
 - Fresh Windows rebuild with the same packaging specification and pinned build
