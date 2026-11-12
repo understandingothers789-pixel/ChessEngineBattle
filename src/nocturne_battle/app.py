@@ -442,9 +442,12 @@ class Window(QMainWindow):
         form.addRow(self.keep_best_changes)
         self.auto_draw = QCheckBox('Automatic draw by evaluation agreement')
         self.auto_draw.setChecked(True)
-        self.auto_draw.setToolTip('After move 50, draw when both engines stay within ±0.30 pawns for 10 consecutive plies (5 full moves). Uses exact rank-1 scores from consecutive completed playing searches. Missing or non-exact scores reset the streak.')
+        self.auto_draw.setToolTip('Starting at the selected move, draw when both engines stay within ±0.30 pawns for 10 consecutive plies (5 full moves). Uses exact rank-1 scores from consecutive completed playing searches. Missing or non-exact scores reset the streak.')
         form.addRow(self.auto_draw)
-        rule_note = QLabel('After move 50 · both within ±0.30 pawns · 10 consecutive plies')
+        self.draw_start = QSpinBox(); self.draw_start.setRange(1, 9999); self.draw_start.setValue(30)
+        self.draw_start.setToolTip('Start counting qualifying completed plies at this full move number. Applies to new matches.')
+        form.addRow('Start draw rule at move', self.draw_start)
+        rule_note = QLabel('Both within ±0.30 pawns · 10 consecutive plies')
         rule_note.setWordWrap(True); form.addRow(rule_note)
         self.checkpoint = QLineEdit('1000000')
         form.addRow('First checkpoint', self.checkpoint)
@@ -879,6 +882,7 @@ class Window(QMainWindow):
             self.tournament.state['silence_timeout_ms']=self.silence_timeout.value()*1000
             self.tournament.state['save_best_changes']=self.keep_best_changes.isChecked()
             self.tournament.state['draw_rule']['enabled']=self.auto_draw.isChecked()
+            self.tournament.state['draw_rule']['after_move']=self.draw_start.value()
             self.tournament.save()
             self.follow_live = True
             self.save_settings()
@@ -1455,7 +1459,7 @@ class Window(QMainWindow):
     def save_settings(self):
         self.db.put('workspace', dict(clock_bases=[c.value() for c in self.clock_bases],clock_increments=[c.value() for c in self.clock_increments],silence_timeout=self.silence_timeout.value(), geometry=bytes(self.saveGeometry().toHex()).decode(), workspace=self.workspace.currentIndex(), splitter=self.splitter.sizes(), board_splitter=self.board_splitter.sizes(), table_widths=[self.games_table.columnWidth(i) for i in range(8)], mode=self.mode.currentText(),
             budgets=[x.text() for x in self.budgets], engines=[x.currentIndex() for x in self.engines],
-            keep_best_changes=self.keep_best_changes.isChecked(), ui_layout=2, full_variations=self.full_variations.isChecked(), book=self.book.text(), pairs=self.pairs.value(), play_pv=self.play_pv.value(), auto_draw=self.auto_draw.isChecked(),
+            keep_best_changes=self.keep_best_changes.isChecked(), ui_layout=2, full_variations=self.full_variations.isChecked(), book=self.book.text(), pairs=self.pairs.value(), play_pv=self.play_pv.value(), auto_draw=self.auto_draw.isChecked(), draw_start=self.draw_start.value(),
             checkpoint=self.checkpoint.text(), maximum=self.maximum.text(), seed=self.seed.value(),
             randomized=self.randomized.isChecked(), ratio=self.ratio.currentText(), dual=self.dual.isChecked()))
 
@@ -1482,6 +1486,7 @@ class Window(QMainWindow):
         self.keep_best_changes.setChecked(state.get('keep_best_changes',True))
         self.full_variations.setChecked(state.get('full_variations',False))
         self.auto_draw.setChecked(state.get('auto_draw',True))
+        self.draw_start.setValue(state.get('draw_start',30))
         self.checkpoint.setText(state['checkpoint'])
         self.maximum.setText(state['maximum'])
         self.seed.setValue(state['seed'])

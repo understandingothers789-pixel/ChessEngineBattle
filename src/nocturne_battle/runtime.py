@@ -356,13 +356,13 @@ class Tournament(QObject):
             item.setdefault('evaluations', {})[side] = dict(
                 ply=ply, white_cp=white_cp(line, turn), search_run_id=context['id'])
             rule = self.state.get('draw_rule', DEFAULT_RULE)
-            qualifies = (rule['enabled'] and fullmove > rule['after_move'] and
+            qualifies = (rule['enabled'] and (fullmove >= rule['after_move'] if rule.get('start_inclusive', False) else fullmove > rule['after_move']) and
                          agreement(item, ply, rule['draw_cp']) == '1/2-1/2')
             item['draw_streak'] = item.get('draw_streak', 0) + 1 if qualifies else 0
             if not self.game.outcome and item['draw_streak'] >= rule['consecutive_plies']:
                 self.adjudicate('1/2-1/2',
                     f"Draw by evaluation agreement (both engines within ±{rule['draw_cp']/100:g} pawns "
-                    f"for {rule['consecutive_plies']} consecutive plies after move {rule['after_move']})")
+                    f"for {rule['consecutive_plies']} consecutive plies starting at move {rule['after_move']})")
                 return
             self.save()
             QTimer.singleShot(0, self.next)

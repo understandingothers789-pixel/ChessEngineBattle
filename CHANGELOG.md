@@ -5,8 +5,10 @@ New builds use the main branch; version numbers distinguish downloads.
 
 ## 0.5.3
 
+- Choose the move when automatic draw counting starts; the default is move 30.
+
 - Add a clickable Live board evaluation graph for both engines using final recorded move searches, including saved games. Positive scores favor White.
-- Automatic evaluation draw now defaults to ±0.30 pawns after move 50 for 10 consecutive plies. Existing matches retain their recorded rule.
+- Automatic evaluation draw now defaults to ±0.30 pawns from move 30 for 10 consecutive plies. Existing matches retain their recorded rule.
 
 ## 0.5.2 rebuild 3 — recreated from 0.5.1
 

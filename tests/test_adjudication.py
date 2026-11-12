@@ -28,6 +28,7 @@ def test_automatic_draw_after_50_with_ten_consecutive_plies(qtbot,db,profile):
     t=Tournament(db)
     fen=Game().initial_fen.rsplit(' ',1)[0]+' 50'
     t.create([p]*2,[Limit('nodes',1000)]*2,schedule([fen],1))
+    t.state['draw_rule']['after_move'] = 51
     t.resume()
     qtbot.waitUntil(lambda:t.state['index']==2,timeout=20000)
     for g in t.state['games']:

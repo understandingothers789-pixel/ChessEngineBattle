@@ -2,7 +2,7 @@
 import math
 
 
-DEFAULT_RULE = dict(enabled=True, after_move=50, draw_cp=30, consecutive_plies=10)
+DEFAULT_RULE = dict(enabled=True, after_move=30, start_inclusive=True, draw_cp=30, consecutive_plies=10)
 
 
 def white_cp(line, turn):
