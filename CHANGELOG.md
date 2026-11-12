@@ -3,6 +3,10 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.5.7
+
+- Scorecard clocks follow the selected move during review and retain live ticking on the current live move.
+
 ## 0.5.6
 
 - Add configurable 0.20-second default clock buffer and show active engine clock in live analysis.

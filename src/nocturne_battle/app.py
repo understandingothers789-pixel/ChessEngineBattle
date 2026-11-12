@@ -56,7 +56,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.6 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.7 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -78,7 +78,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.6'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.7'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -808,6 +808,29 @@ class Window(QMainWindow):
         self.swap_budget_button.setVisible(mode!='clock')
 
     def update_clocks(self):
+        state=self.tournament.state
+        selected=self.game_selector.currentIndex() if hasattr(self,'game_selector') else -1
+        live_index=state.get('index',-1) if state else -1
+        reviewing=bool(state and selected >= 0 and (not self.follow_live or selected != live_index or self.view_game.cursor < len(self.view_game.moves)))
+        if reviewing:
+            game_item=state['games'][selected]
+            cursor=self.view_game.cursor
+            remaining_by_side={}
+            for ply in range(1,cursor+1):
+                link=game_item.get('move_searches',{}).get(str(ply),{})
+                payload=link.get('clock_after',{}).get('remaining_ns',{})
+                start_white=game_item['fen'].split()[1]=='w'
+                turn=1 if ((ply % 2 == 1) == start_white) else -1
+                side=0 if (turn == 1) == game_item['a_white'] else 1
+                value=payload.get(str(turn),payload.get(turn))
+                if value is not None:
+                    remaining_by_side[side]=value
+            def historical(side):
+                value=remaining_by_side.get(side)
+                return f'{value/1e9:05.1f}' if value is not None else '—'
+            self.scoreboard.set_clocks(historical(0),historical(1))
+            self.clock_label.setText('Reviewed clocks · after selected move' if remaining_by_side else 'Clock history unavailable for this game')
+            return
         clock=self.tournament.clock
         if not clock:self.clock_label.clear();self.scoreboard.set_clocks('','');return
         def label(color):
