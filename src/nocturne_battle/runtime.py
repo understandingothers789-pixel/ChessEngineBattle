@@ -337,7 +337,7 @@ class Tournament(QObject):
             timing={}
             if self.clock:
                 before=self.clock.payload()
-                flag,elapsed=self.clock.stop(now=data['received_ns'],add_increment=True)
+                flag,elapsed=self.clock.stop(now=data['received_ns'],add_increment=True,buffer_ns=int(self.state.get('clock_buffer_seconds',0.2)*1_000_000_000))
                 self.clock_timer.stop()
                 if flag is not None:self.forfeit(flag);return
                 timing=dict(clock_before=before,clock_after=self.clock.payload(),elapsed_ns=elapsed)

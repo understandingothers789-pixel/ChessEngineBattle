@@ -56,7 +56,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.5 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.6 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -78,7 +78,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.5'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.6'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -383,6 +383,9 @@ class Window(QMainWindow):
         preset=QComboBox();preset.addItem('Apply a clock preset…',None)
         for title,minutes,increment in [('10 sec + 0.1 sec',10/60,0.1),('30 sec + 0.1 sec',0.5,0.1),('1 min + 0 sec',1,0),('3 min + 2 sec',3,2),('5 min + 3 sec',5,3),('10 min + 5 sec',10,5)]:preset.addItem(title,(minutes,increment))
         self.clock_bases=[];self.clock_increments=[]
+        self.clock_buffer=QDoubleSpinBox(); self.clock_buffer.setRange(0,10); self.clock_buffer.setDecimals(2); self.clock_buffer.setValue(0.2); self.clock_buffer.setSuffix(' sec')
+        self.clock_buffer.setToolTip('Grace allowance deducted from measured move time to absorb small engine and communication delays. Default: 0.20 seconds per move.')
+        clock_form.addRow('Move buffer', self.clock_buffer)
         clock_form.addRow('Same preset for both',preset)
         for side in range(2):
             base=MinutesSeconds()
@@ -881,6 +884,7 @@ class Window(QMainWindow):
                 self.pairs.value(), self.seed.value(), self.randomized.isChecked()),
                 self.play_pv.value(), start, maximum, self.seed.value())
             self.tournament.state['silence_timeout_ms']=self.silence_timeout.value()*1000
+            self.tournament.state['clock_buffer_seconds']=self.clock_buffer.value()
             self.tournament.state['save_best_changes']=self.keep_best_changes.isChecked()
             self.tournament.state['draw_rule']['enabled']=self.auto_draw.isChecked()
             self.tournament.state['draw_rule']['after_move']=self.draw_start.value()
@@ -1166,7 +1170,10 @@ class Window(QMainWindow):
         context = self.tournament.search.context
         if context and self.live_search_ids[side] != context['id']:self.live_started(context)
         name = self.tournament.state['profiles'][side]['name']
-        self.live_labels[side].setText(f"ENGINE {'AB'[side]} · {'White' if game.board.turn == 1 else 'Black'} · move {game.board.native.fullmove_number} · depth {info.get('depth',0)} · {info.get('nodes',0):,} nodes · TB hits {info['tbhits']:,}" if isinstance(info.get('tbhits'), int) else f"ENGINE {'AB'[side]} · {'White' if game.board.turn == 1 else 'Black'} · move {game.board.native.fullmove_number} · depth {info.get('depth',0)} · {info.get('nodes',0):,} nodes · TB hits not reported")
+        remaining = self.tournament.clock.left(game.board.turn)/1e9 if self.tournament.clock else None
+        clock_text = f' · clock {remaining:.1f}s' if remaining is not None else ''
+        tb = f"TB hits {info['tbhits']:,}" if isinstance(info.get('tbhits'), int) else 'TB hits not reported'
+        self.live_labels[side].setText(f"ENGINE {'AB'[side]} · {'White' if game.board.turn == 1 else 'Black'} · move {game.board.native.fullmove_number} · depth {info.get('depth',0)} · {info.get('nodes',0):,} nodes · {tb}{clock_text}")
         if True:
             self.live_panels[side].set_multipv(self.tournament.state['multipv'])
             self.live_panels[side].update_line(info, game.board.turn)
@@ -1508,7 +1515,7 @@ class Window(QMainWindow):
             self.error(str(exc))
 
     def save_settings(self):
-        self.db.put('workspace', dict(clock_bases=[c.value() for c in self.clock_bases],clock_increments=[c.value() for c in self.clock_increments],silence_timeout=self.silence_timeout.value(), geometry=bytes(self.saveGeometry().toHex()).decode(), workspace=self.workspace.currentIndex(), splitter=self.splitter.sizes(), board_splitter=self.board_splitter.sizes(), table_widths=[self.games_table.columnWidth(i) for i in range(8)], mode=self.mode.currentText(),
+        self.db.put('workspace', dict(clock_bases=[c.value() for c in self.clock_bases],clock_increments=[c.value() for c in self.clock_increments], clock_buffer=self.clock_buffer.value(),silence_timeout=self.silence_timeout.value(), geometry=bytes(self.saveGeometry().toHex()).decode(), workspace=self.workspace.currentIndex(), splitter=self.splitter.sizes(), board_splitter=self.board_splitter.sizes(), table_widths=[self.games_table.columnWidth(i) for i in range(8)], mode=self.mode.currentText(),
             budgets=[x.text() for x in self.budgets], engines=[x.currentIndex() for x in self.engines],
             keep_best_changes=self.keep_best_changes.isChecked(), ui_layout=2, full_variations=self.full_variations.isChecked(), book=self.book.text(), pairs=self.pairs.value(), play_pv=self.play_pv.value(), auto_draw=self.auto_draw.isChecked(), draw_start=self.draw_start.value(),
             checkpoint=self.checkpoint.text(), maximum=self.maximum.text(), seed=self.seed.value(),
@@ -1521,6 +1528,7 @@ class Window(QMainWindow):
         if state.get('geometry'): self.restoreGeometry(bytes.fromhex(state['geometry']))
         self.workspace.setCurrentIndex(state.get('workspace',0))
         self.silence_timeout.setValue(state.get('silence_timeout',120))
+        self.clock_buffer.setValue(state.get('clock_buffer',0.2))
         self.splitter.setSizes(state['splitter'] if state.get('ui_layout') == 2 else [1000,500])
         self.board_splitter.setSizes(state.get('board_splitter',[600,230]))
         self.games_table._restore_widths=state.get('table_widths')

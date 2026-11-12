@@ -37,15 +37,16 @@ class MatchClock:
         elapsed=0 if self.active != color else max(0,(time.monotonic_ns() if now is None else now)-self.anchor)
         return max(0,self.remaining[color]-elapsed)
 
-    def stop(self,now=None,add_increment=False):
+    def stop(self,now=None,add_increment=False,buffer_ns=0):
         if self.active is None:return None,0
         color=self.active
         elapsed=max(0,(time.monotonic_ns() if now is None else now)-self.anchor)
-        self.remaining[color]=max(0,self.remaining[color]-elapsed)
+        charged=max(0,elapsed-max(0,buffer_ns))
+        self.remaining[color]=max(0,self.remaining[color]-charged)
         flagged=self.remaining[color] == 0
         if add_increment and not flagged:self.remaining[color]+=self.increments[color]
         self.active=self.anchor=self.wall_anchor=None
-        return color if flagged else None,elapsed
+        return color if flagged else None,charged
 
     def uci(self):
         return 'go '+ ' '.join(f'{name} {value}' for name,value in (
