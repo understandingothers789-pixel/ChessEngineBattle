@@ -549,13 +549,14 @@ class Window(QMainWindow):
         self.tournament.restore_game()
         self.follow_live = True
         self.tournament.save()
-        profiles = [Profile(**p) for p in self.tournament.state['profiles']]
-        for side, profile in enumerate(profiles):
-            index = next((i for i,p in enumerate(self.profiles) if p.fingerprint() == profile.fingerprint()), -1)
-            if index < 0:
-                self.profiles.append(profile); self.populate_profiles(); index = len(self.profiles)-1
-            self.engines[side].setCurrentIndex(index)
-        self.db.put('profiles',[asdict(p) for p in self.profiles])
+        if not self.tournament.state.get('review_only'):
+            profiles = [Profile(**p) for p in self.tournament.state['profiles']]
+            for side, profile in enumerate(profiles):
+                index = next((i for i,p in enumerate(self.profiles) if p.fingerprint() == profile.fingerprint()), -1)
+                if index < 0:
+                    self.profiles.append(profile); self.populate_profiles(); index = len(self.profiles)-1
+                self.engines[side].setCurrentIndex(index)
+            self.db.put('profiles',[asdict(p) for p in self.profiles])
         self._live_game_id = None
         for panel in self.live_panels:panel.clear()
         self.workspace.setCurrentIndex(1)

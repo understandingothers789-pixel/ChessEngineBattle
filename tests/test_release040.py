@@ -42,6 +42,10 @@ def test_portable_match_roundtrip_retains_moves_depths_and_previews(qtbot,db,pro
     assert imported['games'][0]['moves']==w.tournament.state['games'][0]['moves']
     target.save_tournament(imported)
     restored=Window(target);qtbot.addWidget(restored)
+    restored.refresh_archives()
+    restored.archive_selector.setCurrentIndex(restored.archive_selector.findData(sid))
+    restored.open_archive()
+    assert not restored.profiles  # Viewing an imported file never installs its engine commands.
     restored.inspect_move(2)
     assert all(len(panel.lines)==3 for panel in restored.live_panels)
     assert not restored.pause_button.isEnabled() and restored.tournament.state['review_only']

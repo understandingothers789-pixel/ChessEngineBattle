@@ -254,8 +254,9 @@ select that stored snapshot. Data remains available without restarting engines.
 Qt's per-user AppLocalDataLocation stores `battle.sqlite` (on Windows typically
 `%LOCALAPPDATA%\Nocturne\NocturneBattle`). Engine profiles, layouts, settings,
 searches and completed/interrupted histories persist. New matches archive the old
-state rather than delete it; archived matches are included in JSON but currently
-have no GUI match selector. Back up the database with the application closed.
+state rather than delete it. Use **Saved matches…** to reopen an earlier
+tournament and review its moves and stored engine analysis. Use **Save match…**
+to create a portable copy with the complete recorded analysis. Back up the database with the application closed.
 A 2GB analysis ceiling stops additional capture rather than delete history.
 
 JSON exports include all stored configuration, searches, statuses and snapshots.
