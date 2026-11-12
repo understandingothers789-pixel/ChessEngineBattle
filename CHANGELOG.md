@@ -3,6 +3,10 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.5.9 rebuild
+
+- Fresh Windows rebuild with file revision 0.5.9.1, using the same packaging specification and workflow as the working 0.5.4 rebuild.
+
 ## 0.5.9
 
 - Show recorded node counts for the selected engine search during move review.
