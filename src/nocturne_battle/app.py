@@ -530,6 +530,7 @@ class Window(QMainWindow):
             control.setCurrentIndex(max(0, index))
 
     def refresh_engine_names(self):
+        if hasattr(self,'tb_status'):self.refresh_setup_status()
         if self.tournament.state:return
         for side,control in enumerate(self.engines):
             index=control.currentIndex()
