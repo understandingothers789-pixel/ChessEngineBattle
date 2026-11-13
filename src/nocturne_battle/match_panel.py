@@ -21,8 +21,8 @@ class MatchCandidates(CandidatePanel):
             moves = self.rows[rank][2]
             cursor = moves.document().find(QRegularExpression(r'@\s+\S+'))
             if not cursor.isNull():
-                fmt = QTextCharFormat(); fmt.setForeground(QColor('#071823'))
-                fmt.setBackground(QColor('#ffcf66')); fmt.setFontWeight(QFont.Weight.Bold)
+                fmt = QTextCharFormat(); fmt.setForeground(QColor('#b7eadf'))
+                fmt.setBackground(QColor('#284b4b')); fmt.setFontWeight(QFont.Weight.Bold)
                 cursor.mergeCharFormat(fmt)
 
     def set_full(self, full):

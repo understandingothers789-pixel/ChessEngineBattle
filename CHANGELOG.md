@@ -3,6 +3,10 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.5.10
+
+- Soften the main variation divergence highlight with a muted teal background.
+
 ## 0.5.9 rebuild 2
 
 - Recreate from the 0.5.8 application and packaging baseline and reapply the recorded nodes and divergence highlight changes. File revision 0.5.9.2.
