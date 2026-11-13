@@ -3,6 +3,10 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.5.10 rebuild
+
+- Fresh Windows rebuild using the 0.5.9 packaging setup; file revision 0.5.10.1.
+
 ## 0.5.10
 
 - Soften the main variation divergence highlight with a muted teal background.
