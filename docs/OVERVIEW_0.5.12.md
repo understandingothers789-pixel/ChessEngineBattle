@@ -51,7 +51,9 @@ profiles/options, opening imports, adjudication, tablebase configuration,
 portable save/import, statistics, history and UI layout. New regression checks
 cover preset round trips and exported score perspective and timing. The local
 startup/render check passed. Windows CI additionally builds and starts the
-packaged executable before the download is published.
+packaged executable before the download is published. For this build, all 128
+Windows tests passed, one optional real-engine check was skipped, and the
+packaged startup/render check passed. The 1280×800 layout was also checked.
 
 No test suite establishes Smart App Control trust. Signing remains a separate
 release task. Actual Syzygy probing and external-engine behavior depend on the
