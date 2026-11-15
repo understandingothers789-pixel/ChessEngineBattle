@@ -3,6 +3,10 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.5.12 rebuild
+
+- Fresh Windows build with file revision 0.5.12.1.
+
 ## 0.5.12
 
 - Add a dedicated knight icon for the executable, window and Windows taskbar.
