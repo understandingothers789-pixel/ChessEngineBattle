@@ -5,6 +5,8 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+- [Download Chess Engine Battle 0.5.13 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43755471385/artifacts/14177794694) — pair-based Elo confidence intervals at 80/90/95/99%, pentanomial results, standard error and approximate LOS; local engine and tablebase diagnostics in Results history. Fixed-sample approximation, not Fishtest SPRT; see [method and limitations](docs/CONFIDENCE.md). Windows tests and packaged startup check passed. Extract the full ZIP. GitHub sign-in required; Actions downloads expire.
+
 - [Download Chess Engine Battle 0.5.12 rebuild for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43754576903/artifacts/14178110707) — fresh build with the knight icon, presets and review tools; file revision 0.5.12.1. Windows tests and packaged startup check passed. Unsigned; Smart App Control acceptance is unverified. Extract the whole ZIP. GitHub sign-in required; Actions downloads expire.
 
 - [Download Chess Engine Battle 0.5.12 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43749422591/artifacts/14176145378) — new knight taskbar/executable icon, named match presets, direct move navigation and CSV move statistics. 128 Windows tests passed, 1 optional real-engine check skipped; packaged startup check passed. See the [overview and five ideas](docs/OVERVIEW_0.5.12.md). Extract the full ZIP. GitHub sign-in required; Actions downloads expire.
