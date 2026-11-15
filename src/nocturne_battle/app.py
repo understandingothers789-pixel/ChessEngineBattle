@@ -56,7 +56,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.10 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.11 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -78,7 +78,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.10'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.11'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -818,19 +818,24 @@ class Window(QMainWindow):
             game_item=state['games'][selected]
             cursor=self.view_game.cursor
             remaining_by_side={}
-            for ply in range(1,cursor+1):
-                link=game_item.get('move_searches',{}).get(str(ply),{})
-                payload=link.get('clock_after',{}).get('remaining_ns',{})
-                start_white=game_item['fen'].split()[1]=='w'
-                turn=1 if ((ply % 2 == 1) == start_white) else -1
-                side=0 if (turn == 1) == game_item['a_white'] else 1
-                value=payload.get(str(turn),payload.get(turn))
-                if value is not None:
-                    remaining_by_side[side]=value
+            links=game_item.get('move_searches',{})
+            for ply in sorted((int(key) for key in links if int(key) <= cursor), reverse=True):
+                payload=links[str(ply)].get('clock_after',{}).get('remaining_ns',{})
+                if payload:
+                    remaining_by_side=payload
+                    break
+            if not remaining_by_side and cursor == 0:
+                first=next((links[key] for key in sorted(links,key=int) if links[key].get('clock_before')),None)
+                if first: remaining_by_side=first['clock_before'].get('remaining_ns',{})
             def historical(side):
-                value=remaining_by_side.get(side)
-                return f'{value/1e9:05.1f}' if value is not None else '—'
+                color=1 if (side == 0) == game_item['a_white'] else -1
+                value=remaining_by_side.get(str(color),remaining_by_side.get(color))
+                if value is None: return '—'
+                ms=max(0,int(value))//1_000_000
+                return f'{ms//60000:02d}:{ms//1000%60:02d}.{ms%1000//100}'
             self.scoreboard.set_clocks(historical(0),historical(1))
+            for clock_label in self.scoreboard.clocks:
+                clock_label.setToolTip('Recorded clock after the selected move, including increment. A dash means no clock was recorded.')
             self.clock_label.setText('Reviewed clocks · after selected move' if remaining_by_side else 'Clock history unavailable for this game')
             return
         clock=self.tournament.clock
@@ -839,6 +844,8 @@ class Window(QMainWindow):
             milliseconds=clock.left(color)//1_000_000
             return f'{milliseconds//60000:02d}:{milliseconds//1000%60:02d}.{milliseconds%1000//100}'
         item=self.tournament.state['games'][self.tournament.state['index']]
+        for clock_label in self.scoreboard.clocks:
+            clock_label.setToolTip('Live remaining game time. Review a move to show recorded clocks; Follow live game restores these live clocks.')
         self.scoreboard.set_clocks(label(1 if item['a_white'] else -1),label(-1 if item['a_white'] else 1))
         self.clock_label.setText(f'Live clocks · White {label(1)}   |   Black {label(-1)}')
 
@@ -902,6 +909,8 @@ class Window(QMainWindow):
             for profile in profiles:
                 path=next((v for k,v in profile.options.items() if k.lower()=='syzygypath' and v),'not configured')
                 description+=f'\n{profile.name} · tablebases: {path}'
+            if self.mode.currentText() == 'clock': description += f'\nMove buffer: {self.clock_buffer.value():.2f} seconds'
+            description += (f'\nAutomatic draw: from move {self.draw_start.value()}, both within ±0.30 for 10 consecutive plies' if self.auto_draw.isChecked() else '\nAutomatic evaluation draw: off')
             self.summary.setText(description)
             if QMessageBox.question(self, 'Match configuration', description+'\nStart this match?') != QMessageBox.StandardButton.Yes: return
             self.cancel_analysis()
@@ -962,13 +971,13 @@ class Window(QMainWindow):
         for control in (self.game_selector,self.previous_game_button,self.next_game_button):control.setVisible(bool(state))
         self.setup_button.setText('New match…' if state else 'Set up match…')
         self.pause_button.setText('Pause' if self.tournament.active else 'Resume')
-        is_paused = bool(state and state.get('index', 0) < len(state.get('games', [])) and not self.tournament.active)
+        is_paused = bool(state and not state.get('review_only') and state.get('index', 0) < len(state.get('games', [])) and not self.tournament.active)
         self.pause_status.setText('PAUSED' if is_paused else '')
         self.pause_status.setVisible(is_paused)
         self.save_match_button.setEnabled(bool(state))
         if state:
             complete = sum(g['result'] != '*' for g in state['games'])
-            mode = 'RUNNING' if self.tournament.active else ('COMPLETED' if complete == len(state['games']) else 'PAUSED')
+            mode = 'REVIEW ONLY' if state.get('review_only') else 'RUNNING' if self.tournament.active else ('COMPLETED' if complete == len(state['games']) else 'PAUSED')
             a_wins=b_wins=draws=0
             for game in state['games']:
                 if game['result']=='1/2-1/2':draws+=1
@@ -1041,7 +1050,7 @@ class Window(QMainWindow):
         if getattr(self,'_statistics_key',None)!=statistics_key:
             self.stats.setPlainText(summarize(state));self._statistics_key=statistics_key
         self.update_clocks()
-        self.status.setText(f"{'Running' if self.tournament.active else 'Paused / complete'} · game {index+1}/{len(state['games'])}")
+        self.status.setText(f"{mode.title()} · game {index+1}/{len(state['games'])}")
 
     def clear_live_preview(self):
         self.live_preview_board.clear_preview(); self.preview_popup.hide()
@@ -1059,8 +1068,10 @@ class Window(QMainWindow):
         node_text = f'{nodes:,}' if isinstance(nodes, int) and not isinstance(nodes, bool) else 'not reported'
         self.live_labels[side].setText(base + f' · nodes: {node_text}' + (f' · TB hits {hits:,}' if isinstance(hits, int) else ' · TB hits not reported'))
         for line in lines.values():panel.update_line(line, self.live_games[side].board.turn)
+        if not getattr(self,'_loading_saved',False): self.mark_main_divergence()
 
     def load_saved_analysis(self, item, ply):
+        self._loading_saved=True
         self.move_eval_graph.load(item, self.db, ply)
         runs = {}
         for key, link in sorted(item.get('move_searches', {}).items(), key=lambda x:int(x[0]), reverse=True):
@@ -1111,9 +1122,13 @@ class Window(QMainWindow):
             selector.setVisible(bool(self.saved_records[side]))
             selector.setCurrentIndex(0); selector.blockSignals(False)
             self.choose_saved(side,0)
+        self._loading_saved=False
         self.mark_main_divergence()
 
     def mark_main_divergence(self):
+        for panel in self.live_panels:
+            panel.divergence_index=None
+            panel.set_full(self.full_variations.isChecked())
         lines = [panel.lines.get(1, {}) for panel in self.live_panels]
         if not all(self.live_games) or not all(line.get('pv') for line in lines): return
         starts = [len(game.moves) for game in self.live_games]
@@ -1187,6 +1202,7 @@ class Window(QMainWindow):
         self.live_panels[side].clear()
         self.live_games[side] = Game(game.board.fen())
         self.live_search_ids[side] = context['id']
+        self.live_panels[side].divergence_index=None
         self.live_positions[side] = game.board.fen()
         name = self.tournament.state['profiles'][side]['name']
         self.live_labels[side].setText(f'ENGINE {"AB"[side]} · {"White" if game.board.turn == 1 else "Black"} · move {game.board.native.fullmove_number} · preparing search')

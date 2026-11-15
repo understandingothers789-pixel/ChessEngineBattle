@@ -3,6 +3,14 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.5.11 — reliability and usability review
+
+- Honor the clock buffer during timeout checks and preserve actual recorded move time.
+- Show both reviewed clocks consistently; clear stale divergence markers when changing saved searches.
+- Label portable matches as review only and show draw/buffer settings in match confirmation.
+- Cache the graph scale rather than recalculating it for each point.
+- Add a [review report and improvement ideas](docs/REVIEW_AND_IDEAS.md).
+
 ## 0.5.10 rebuild
 
 - Fresh Windows rebuild using the 0.5.9 packaging setup; file revision 0.5.10.1.

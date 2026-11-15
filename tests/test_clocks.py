@@ -39,6 +39,7 @@ def test_invalid_clock_limits(limit):
 def test_uci_clock_commands_and_paired_reset(qtbot,db,profile):
     t=Tournament(db)
     t.create([profile]*2,[Limit('clock',10000,50),Limit('clock',20000,100)],schedule(openings(None),1))
+    t.state['clock_buffer_seconds']=0
     t.state['max_plies']=2
     t.resume()
     qtbot.waitUntil(lambda:t.state['index']==2,timeout=15000)
@@ -59,6 +60,7 @@ def test_uci_clock_commands_and_paired_reset(qtbot,db,profile):
 def test_time_forfeit_stops_search_and_records_no_late_move(qtbot,db,profile):
     p=replace(profile,arguments=profile.arguments+['--wait'])
     t=Tournament(db);t.create([p]*2,[Limit('clock',20,1000)]*2,schedule(openings(None),1))
+    t.state['clock_buffer_seconds']=0
     t.resume()
     qtbot.waitUntil(lambda:t.state['index']==2,timeout=15000)
     assert all(g['result']=='0-1' and g['moves']==[] and g['termination']=='Time forfeit' for g in t.state['games'])

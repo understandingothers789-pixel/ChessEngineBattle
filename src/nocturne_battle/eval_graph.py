@@ -30,6 +30,8 @@ class MoveEvaluationGraph(QWidget):
         self.initial_black = False
         self.last_ply = 0
         self._load_key = None
+        self._scale = scale_for([])
+        self._end = 2
         self.setToolTip('Final exact evaluations from each engine’s completed search. Scores are from White’s perspective; positive favors White. Click a point to review that move.')
 
     def load(self, item, db, cursor):
@@ -53,6 +55,8 @@ class MoveEvaluationGraph(QWidget):
             if value is not None:
                 self.points[side].append((ply, value / 100, int(fen[5]), turn))
         for series in self.points: series.sort()
+        self._scale = scale_for([q[1] for series in self.points for q in series])
+        self._end = max([2,self.last_ply]+[q[0] for series in self.points for q in series])
         all_points = sorted(p for series in self.points for p in series)
         if all_points:
             ply, _, move, turn = all_points[0]
@@ -62,13 +66,13 @@ class MoveEvaluationGraph(QWidget):
             self.initial_black = bool(halfmove % 2)
         self.update()
 
-    def geometry(self):
+    def plot_rect(self):
         return QRectF(64, 72, max(1, self.width()-86), max(1, self.height()-122))
 
     def xy(self, ply, value):
-        rect = self.geometry()
-        limit, _ = scale_for([p[1] for series in self.points for p in series])
-        end = max(2, self.last_ply, *(p[0] for series in self.points for p in series))
+        rect = self.plot_rect()
+        limit, _ = self._scale
+        end = self._end
         return rect.left() + rect.width() * (ply-1) / (end-1), rect.center().y() - value / limit * rect.height()/2
 
     def paintEvent(self, event):
@@ -78,8 +82,8 @@ class MoveEvaluationGraph(QWidget):
         p.setPen(QColor('#9fb4c7')); p.drawText(16, 43, 'Final engine scores · pawns · positive favors White')
         p.setPen(QColor('#8ed5c5')); p.drawText(16, 61, '━━  Engine A')
         p.setPen(QColor('#86b9ff')); p.drawText(130, 61, '╌╌  Engine B')
-        rect = self.geometry()
-        limit, step = scale_for([v for series in self.points for _, v, _, _ in series])
+        rect = self.plot_rect()
+        limit, step = self._scale
         count = round(limit / step)
         for i in range(-count, count+1):
             v = i*step; y = rect.center().y() - v/limit*rect.height()/2
@@ -88,7 +92,7 @@ class MoveEvaluationGraph(QWidget):
             p.setPen(QColor('#bdcedd'))
             label = f'{v:+g}' if i else '0'
             p.drawText(QRectF(0,y-9,rect.left()-9,18), Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, label)
-        end = max(2, self.last_ply, *(q[0] for series in self.points for q in series))
+        end = self._end
         max_move = self.initial_move + (end-1+int(self.initial_black))//2
         span = max(1, max_move-self.initial_move)
         raw = max(1, math.ceil(span/6)); power = 10**math.floor(math.log10(raw))

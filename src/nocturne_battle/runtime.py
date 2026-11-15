@@ -241,7 +241,7 @@ class Tournament(QObject):
         self.state = dict(id=str(uuid4()), profiles=[asdict(p) for p in profiles],
                           limits=[asdict(l) for l in limits], games=games, index=0,
                           multipv=multipv, checkpoint=checkpoint, maximum=maximum, seed=seed,
-                          draw_rule=dict(DEFAULT_RULE), created_at=time.time(), name=f'{profiles[0].name} vs {profiles[1].name}')
+                          draw_rule=dict(DEFAULT_RULE), clock_buffer_seconds=0.2, created_at=time.time(), name=f'{profiles[0].name} vs {profiles[1].name}')
         self.restore_game()
         self.save()
 
@@ -287,7 +287,7 @@ class Tournament(QObject):
         QTimer.singleShot(0,self.next)
 
     def tick_clock(self):
-        if self.clock and self.clock.active is not None and self.clock.left(self.clock.active)==0:
+        if self.clock and self.clock.expired(int(self.state.get('clock_buffer_seconds',0)*1_000_000_000)):
             color=self.clock.active;self.clock.stop();self.forfeit(color)
         self.clock_changed.emit()
 
@@ -337,7 +337,7 @@ class Tournament(QObject):
             timing={}
             if self.clock:
                 before=self.clock.payload()
-                flag,elapsed=self.clock.stop(now=data['received_ns'],add_increment=True,buffer_ns=int(self.state.get('clock_buffer_seconds',0.2)*1_000_000_000))
+                flag,elapsed=self.clock.stop(now=data['received_ns'],add_increment=True,buffer_ns=int(self.state.get('clock_buffer_seconds',0)*1_000_000_000))
                 self.clock_timer.stop()
                 if flag is not None:self.forfeit(flag);return
                 timing=dict(clock_before=before,clock_after=self.clock.payload(),elapsed_ns=elapsed)
