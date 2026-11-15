@@ -56,7 +56,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.13 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.14 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -78,7 +78,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.13'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.14'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -469,6 +469,14 @@ class Window(QMainWindow):
         rule_note.setWordWrap(True); form.addRow(rule_note)
         self.checkpoint = QLineEdit('1000000')
         form.addRow('First checkpoint', self.checkpoint)
+        self.sprt_enabled=QCheckBox('Enable normalized Elo SPRT monitor for the next match');self.sprt_enabled.setChecked(True)
+        form.addRow(self.sprt_enabled)
+        self.sprt_h0=QDoubleSpinBox();self.sprt_h0.setRange(-20,20);self.sprt_h0.setValue(0)
+        self.sprt_h1=QDoubleSpinBox();self.sprt_h1.setRange(-20,20);self.sprt_h1.setValue(5)
+        form.addRow('SPRT H0 (normalized Elo)',self.sprt_h0);form.addRow('SPRT H1 (normalized Elo)',self.sprt_h1)
+        self.sprt_alpha=QDoubleSpinBox();self.sprt_beta=QDoubleSpinBox()
+        for field in (self.sprt_alpha,self.sprt_beta):field.setDecimals(3);field.setRange(.001,.2);field.setValue(.05)
+        form.addRow('SPRT alpha (false positive)',self.sprt_alpha);form.addRow('SPRT beta (false negative)',self.sprt_beta)
         self.summary = QLabel(); self.summary.setWordWrap(True)
         config.addWidget(self.summary)
         button('Match presets…',self.open_match_presets,config)
@@ -944,6 +952,8 @@ class Window(QMainWindow):
 
     def start_match(self):
         try:
+            from .sequential import start_test
+            sprt_config=start_test(self.sprt_h0.value(),self.sprt_h1.value(),self.sprt_alpha.value(),self.sprt_beta.value()) if self.sprt_enabled.isChecked() else None
             profiles, limits = self.selected_profiles(), self.limits()
             start, maximum = self.bounds()
             if self.tournament.state:
@@ -956,6 +966,7 @@ class Window(QMainWindow):
                 description+=f'\n{profile.name} · tablebases: {path}'
             if self.mode.currentText() == 'clock': description += f'\nMove buffer: {self.clock_buffer.value():.2f} seconds'
             description += (f'\nAutomatic draw: from move {self.draw_start.value()}, both within ±0.30 for 10 consecutive plies' if self.auto_draw.isChecked() else '\nAutomatic evaluation draw: off')
+            if sprt_config:description += f"\nSPRT monitor: H0 {sprt_config['h0']:+g}, H1 {sprt_config['h1']:+g} nElo; alpha {sprt_config['alpha']:.1%}, beta {sprt_config['beta']:.1%}. Schedule continues after decision."
             self.summary.setText(description)
             if QMessageBox.question(self, 'Match configuration', description+'\nStart this match?') != QMessageBox.StandardButton.Yes: return
             self.cancel_analysis()
@@ -964,6 +975,7 @@ class Window(QMainWindow):
                 self.play_pv.value(), start, maximum, self.seed.value())
             self.tournament.state['silence_timeout_ms']=self.silence_timeout.value()*1000
             self.tournament.state['clock_buffer_seconds']=self.clock_buffer.value()
+            if sprt_config:self.tournament.state['sprt']=sprt_config
             self.tournament.state['save_best_changes']=self.keep_best_changes.isChecked()
             self.tournament.state['draw_rule']['enabled']=self.auto_draw.isChecked()
             self.tournament.state['draw_rule']['after_move']=self.draw_start.value()
@@ -1097,7 +1109,8 @@ class Window(QMainWindow):
         if getattr(self,'_statistics_key',None)!=statistics_key:
             self.stats.setPlainText(summarize(state));self._statistics_key=statistics_key
             from .statistics import confidence_report
-            self.confidence_stats.setPlainText(confidence_report(state))
+            from .sequential import report
+            self.confidence_stats.setPlainText(report(state)+'\n\n'+confidence_report(state))
         self.update_clocks()
         self.status.setText(f"{mode.title()} · game {index+1}/{len(state['games'])}")
 
@@ -1510,6 +1523,8 @@ class Window(QMainWindow):
                 raise ValueError('Pause the match before allocating engines to supplementary work')
             if self.analysis.context:
                 raise ValueError('Wait for the current queue or cancel it')
+            from .sequential import start_test
+            sprt_config=start_test(self.sprt_h0.value(),self.sprt_h1.value(),self.sprt_alpha.value(),self.sprt_beta.value()) if self.sprt_enabled.isChecked() else None
             profiles, limits = self.selected_profiles(), self.limits()
             if any(limit.mode == 'clock' for limit in limits):raise ValueError('Game clocks are for match play. Choose nodes, depth or fixed time for supplementary analysis.')
             start, maximum = self.bounds()
@@ -1611,7 +1626,7 @@ class Window(QMainWindow):
             self.error(str(exc))
 
     def save_settings(self):
-        self.db.put('workspace', dict(clock_bases=[c.value() for c in self.clock_bases],clock_increments=[c.value() for c in self.clock_increments], clock_buffer=self.clock_buffer.value(),silence_timeout=self.silence_timeout.value(), geometry=bytes(self.saveGeometry().toHex()).decode(), workspace=self.workspace.currentIndex(), splitter=self.splitter.sizes(), board_splitter=self.board_splitter.sizes(), table_widths=[self.games_table.columnWidth(i) for i in range(8)], mode=self.mode.currentText(),
+        self.db.put('workspace', dict(sprt_enabled=self.sprt_enabled.isChecked(),sprt_h0=self.sprt_h0.value(),sprt_h1=self.sprt_h1.value(),sprt_alpha=self.sprt_alpha.value(),sprt_beta=self.sprt_beta.value(),clock_bases=[c.value() for c in self.clock_bases],clock_increments=[c.value() for c in self.clock_increments], clock_buffer=self.clock_buffer.value(),silence_timeout=self.silence_timeout.value(), geometry=bytes(self.saveGeometry().toHex()).decode(), workspace=self.workspace.currentIndex(), splitter=self.splitter.sizes(), board_splitter=self.board_splitter.sizes(), table_widths=[self.games_table.columnWidth(i) for i in range(8)], mode=self.mode.currentText(),
             budgets=[x.text() for x in self.budgets], engines=[x.currentIndex() for x in self.engines],
             keep_best_changes=self.keep_best_changes.isChecked(), ui_layout=2, full_variations=self.full_variations.isChecked(), book=self.book.text(), pairs=self.pairs.value(), play_pv=self.play_pv.value(), auto_draw=self.auto_draw.isChecked(), draw_start=self.draw_start.value(),
             checkpoint=self.checkpoint.text(), maximum=self.maximum.text(), seed=self.seed.value(),
@@ -1623,6 +1638,8 @@ class Window(QMainWindow):
             return
         if state.get('geometry'): self.restoreGeometry(bytes.fromhex(state['geometry']))
         self.workspace.setCurrentIndex(state.get('workspace',0))
+        self.sprt_enabled.setChecked(state.get('sprt_enabled',True))
+        for name,default in [('sprt_h0',0),('sprt_h1',5),('sprt_alpha',.05),('sprt_beta',.05)]:getattr(self,name).setValue(state.get(name,default))
         self.silence_timeout.setValue(state.get('silence_timeout',120))
         self.clock_buffer.setValue(state.get('clock_buffer',0.2))
         self.splitter.setSizes(state['splitter'] if state.get('ui_layout') == 2 else [1000,500])

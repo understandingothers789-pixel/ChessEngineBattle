@@ -305,6 +305,8 @@ class Tournament(QObject):
         if self.game.outcome:
             item['result'] = self.game.outcome.result
             item.setdefault('termination', self.game.outcome.reason)
+            from .sequential import update_test
+            update_test(self.state)
             self.state['index'] += 1
             self.restore_game()
             self.save()

@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chess-engine-battle"
-version = "0.5.13"
+version = "0.5.14"
 description = "Chess Engine Battle — engine matches and historical search comparison"
 requires-python = ">=3.12"
 license = "GPL-3.0-or-later"
 dependencies = [
   "nocturne-chess @ git+https://github.com/understandingothers789-pixel/nocturne-chess.git@5f9c69582039f42b743f2d12a4a28c188339e55d",
-  "PySide6==6.8.3", "chess==1.11.2"
+  "PySide6==6.8.3", "chess==1.11.2", "scipy>=1.15,<2"
 ]
 [project.optional-dependencies]
 dev = ["pytest>=8,<10", "pytest-qt>=4.4,<5", "pyinstaller>=6.11,<7"]

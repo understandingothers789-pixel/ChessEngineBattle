@@ -35,3 +35,33 @@ lists configured Threads, Hash, Syzygy paths, top-level WDL/DTZ file counts and
 probe limits. It does not launch searches or verify engine support, completeness
 of tablebase sets, file integrity or actual probing. Reported tablebase hits
 remain visible in live and recorded analysis.
+
+## 0.5.14: normalized Elo and SPRT
+
+Match Setup now enables a normalized pentanomial generalized SPRT monitor for
+new matches, with H0=0, H1=+5 nElo and alpha=beta=0.05 by default. These are editable
+before start and are saved with the match. Old matches do not receive a
+retrospective pass/fail verdict. Results history displays the likelihood ratio,
+effective stopping bounds, tested pairs and first decision. The decision is
+frozen at the first boundary crossing, while the scheduled match continues.
+
+The independent implementation uses the normalized t-value constrained
+multinomial likelihood from Fishtest's published model, unseen-category
+regularization of 0.001, Wald bounds and empirical overshoot correction.
+Numerical likelihood values were compared with Fishtest reference commit
+f7af98f81f0c740a4de3d9a3721854709dcdc2bb. It does not run the Fishtest service or
+use its task scheduling and batching infrastructure.
+
+Normalized Elo is `800/ln(10) * (mean - 0.5) / sqrt(2 * pair_variance)`.
+It is unavailable for zero pair variance. Normalized confidence intervals at
+80/90/95/99% use a cluster-robust delta-method normal approximation with at least
+ten opening groups. These fixed-sample intervals are separate from the SPRT
+stopping rule and are not sequentially adjusted. The previous section's lack of
+SPRT applies to the 0.5.13 fixed-sample report, not this new monitor.
+
+SPRT error guarantees assume independent opening pairs and an unchanged test.
+Repeated openings, engine changes and adjudication policies can affect validity.
+An accepted H1 supports the alternative relative to H0; it does not prove the
+true gain equals or exceeds the H1 value. Use representative varied openings and
+keep all conditions fixed. Numerical convergence errors are displayed, not
+converted into verdicts. Normalized Elo and logistic Elo are distinct scales.

@@ -3,6 +3,12 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.5.14
+
+- Add normalized pentanomial generalized SPRT with preconfigured hypotheses, error rates, likelihood ratio, overshoot correction and persisted first decisions. Match schedule continues after a decision.
+- Show normalized Elo and approximate 80/90/95/99% normalized intervals separately from logistic Elo.
+- Numerical likelihood regression values checked against Fishtest.
+
 ## 0.5.13
 
 - Add completed-pair pentanomial statistics, Elo intervals at 80/90/95/99%, standard error and approximate LOS in Results history.
