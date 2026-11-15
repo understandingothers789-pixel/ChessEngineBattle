@@ -3,6 +3,10 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.5.11 rebuild
+
+- Fresh Windows build with file revision 0.5.11.1; retains the reliability fixes.
+
 ## 0.5.11 — reliability and usability review
 
 - Honor the clock buffer during timeout checks and preserve actual recorded move time.
