@@ -8,9 +8,9 @@ from pathlib import Path
 import sys
 
 from PySide6.QtCore import Qt, QStandardPaths, Signal, QTimer, QPoint
-from PySide6.QtGui import QColor, QPainter, QPen, QKeySequence, QShortcut, QCursor
+from PySide6.QtGui import QColor, QPainter, QPen, QIcon, QKeySequence, QShortcut, QCursor
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QFormLayout, QLabel, QPushButton, QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox, QCheckBox,
+    QFormLayout, QInputDialog, QLabel, QPushButton, QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox, QCheckBox,
     QSplitter, QScrollArea, QFileDialog, QMessageBox, QDialog, QDialogButtonBox,
     QGroupBox, QFrame, QButtonGroup, QSizePolicy, QTabWidget, QTableWidget, QTableWidgetItem, QPlainTextEdit, QTextBrowser, QListWidget,QListWidgetItem)
 from nocturne.core.game import Game
@@ -56,7 +56,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.11 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.12 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -78,7 +78,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.11'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.12'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -178,6 +178,12 @@ class Window(QMainWindow):
         self.moves.setToolTip('Click any played move to see its saved engine variations on the right. Arrow keys review earlier or later moves. Opening-book moves have no engine search.')
         details_layout.addWidget(QLabel('MOVES · click a move to review its saved analysis'))
         details_layout.addWidget(self.moves)
+        review_actions=QHBoxLayout()
+        self.jump_move_button=button('Go to move…',self.go_to_move,review_actions)
+        self.jump_move_button.setToolTip('Choose a recorded move by number and notation, including moves in earlier games.')
+        self.export_stats_button=button('Export move statistics…',self.export_move_stats,review_actions)
+        self.export_stats_button.setToolTip('Export final recorded searches for the selected game as CSV. Book moves have no engine statistics; unavailable values stay blank.')
+        details_layout.addLayout(review_actions)
         self.move_eval_graph = MoveEvaluationGraph()
         self.move_eval_graph.selected.connect(self.inspect_move)
         games_group = QGroupBox('Games in this match'); games_group.setCheckable(True); games_group.setChecked(False)
@@ -459,6 +465,7 @@ class Window(QMainWindow):
         form.addRow('First checkpoint', self.checkpoint)
         self.summary = QLabel(); self.summary.setWordWrap(True)
         config.addWidget(self.summary)
+        button('Match presets…',self.open_match_presets,config)
         start_button=button('Review & start match', self.start_match, config);start_button.setObjectName('primaryAction')
         button('Pause match', self.tournament.pause, config)
         button('Resume persisted match', self.resume, config)
@@ -673,6 +680,34 @@ class Window(QMainWindow):
                 QMessageBox.information(self,'Tablebase support','For the next new match:\n'+'\n'.join(dialog.messages))
         finally:
             if was_active:self.tournament.resume()
+
+    def open_match_presets(self):
+        from .review_tools import conditions_dialog
+        conditions_dialog(self)
+
+    def go_to_move(self):
+        if not self.view_game.moves: return
+        initial=Game(self.view_game.initial_fen).board.native
+        labels=['Starting position']
+        for i,san in enumerate(self.view_game.sans):
+            half=i+(0 if initial.turn else 1)
+            labels.append(f"{initial.fullmove_number+half//2}{'.' if half%2==0 else '…'} {san}")
+        selected,ok=QInputDialog.getItem(self,'Go to recorded move','Move:',labels,self.view_game.cursor,False)
+        if ok:self.navigate(labels.index(selected))
+
+    def export_move_stats(self):
+        state=self.tournament.state
+        if not state:return
+        index=self.game_selector.currentIndex()
+        if not 0<=index<len(state['games']):return
+        path,_=QFileDialog.getSaveFileName(self,'Export selected game statistics',f'Game {index+1} statistics.csv','CSV (*.csv)')
+        if not path:return
+        if not Path(path).suffix:path+='.csv'
+        try:
+            from .review_tools import export_move_statistics
+            export_move_statistics(state['games'][index],self.db,path)
+            self.status.setText('Exported move statistics to '+path)
+        except (OSError,ValueError) as exc:self.error(str(exc))
 
     def toggle_pause(self):
         if self.tournament.active:self.tournament.pause()
@@ -965,6 +1000,8 @@ class Window(QMainWindow):
 
     def match_changed(self):
         state = self.tournament.state
+        self.jump_move_button.setEnabled(bool(state))
+        self.export_stats_button.setEnabled(bool(state))
         self.onboarding.setVisible(not bool(state))
         self.result_cards.setVisible(bool(state))
         for card in self.live_analysis_cards:card.setVisible(bool(state))
@@ -1617,7 +1654,11 @@ class Window(QMainWindow):
 
 
 def main():
+    if sys.platform == 'win32':
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('ChessEngineBattle.Desktop')
     app = QApplication(sys.argv)
+    app.setWindowIcon(QIcon(str(Path(__file__).parent/'assets'/'app.ico')))
     app.setApplicationName('NocturneBattle')
     app.setOrganizationName('Nocturne')
     # Keep the established library location through the product rename.

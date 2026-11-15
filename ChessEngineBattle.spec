@@ -7,6 +7,6 @@ a = Analysis(['scripts/desktop_entry.py'],
              hiddenimports=[], hookspath=[], excludes=['tkinter'])
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='ChessEngineBattle',
-          console=False, debug=False, strip=False, upx=False,
+          console=False, debug=False, strip=False, upx=False, icon='src/nocturne_battle/assets/app.ico',
           version='packaging/windows_version.txt' if sys.platform == 'win32' else None)
 coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='ChessEngineBattle')

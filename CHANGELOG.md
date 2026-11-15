@@ -3,6 +3,13 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.5.12
+
+- Add a dedicated knight icon for the executable, window and Windows taskbar.
+- Save and reuse named match-condition presets in Match Setup.
+- Jump directly to a recorded move and export final move statistics as CSV.
+- Document the [overview and five implementation ideas](docs/OVERVIEW_0.5.12.md).
+
 ## 0.5.11 rebuild
 
 - Fresh Windows build with file revision 0.5.11.1; retains the reliability fixes.
