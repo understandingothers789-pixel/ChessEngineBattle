@@ -46,8 +46,8 @@ opening suites, adjudication, tablebase configuration, statistics, and layout.
 
 The local full suite passed with 125 tests and one optional real-engine skip.
 An additional divergence regression check passed afterward, and the local
-application startup/render smoke check passed. Windows CI runs the full suite
-and checks the packaged executable before publication.
+application startup/render smoke check passed. Windows CI passed all 126 tests with one optional real-engine skip and the
+packaged executable startup/render check.
 
 ## Limits
 
