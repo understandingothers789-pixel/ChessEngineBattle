@@ -3,6 +3,12 @@
 Download links and validation details are in [README.md](README.md#build-downloads).
 New builds use the main branch; version numbers distinguish downloads.
 
+## 0.5.13
+
+- Add completed-pair pentanomial statistics, Elo intervals at 80/90/95/99%, standard error and approximate LOS in Results history.
+- Group repeated openings and withhold intervals for insufficient or degenerate data. Fixed-sample approximation; not Fishtest SPRT.
+- Add local engine identity, resource and Syzygy folder diagnostics.
+
 ## 0.5.12 rebuild
 
 - Fresh Windows build with file revision 0.5.12.1.

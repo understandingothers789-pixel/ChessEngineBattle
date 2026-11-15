@@ -78,3 +78,34 @@ def dashboard(state):
     estimate=elo((wins+draws/2)/n) if n else None
     return dict(wins=wins,losses=losses,draws=draws,pair_wins=sum(v>1 for v in scores),
                 pair_losses=sum(v<1 for v in scores),pair_draws=sum(v==1 for v in scores),elo=estimate)
+
+
+def confidence_report(state):
+    """Fixed-sample, opening-cluster normal estimates; not a sequential test."""
+    from statistics import NormalDist
+    pairs=defaultdict(list);identities={}
+    for game in state['games']:
+        if game['result']=='*': continue
+        score=0.5 if game['result']=='1/2-1/2' else float((game['result']=='1-0')==game['a_white'])
+        pairs[game['pair']].append(score)
+        identities[game['pair']]=(game.get('fen',str(game['pair'])),tuple(game.get('moves',[])[:game.get('opening_plies',0)]))
+    complete={key:sum(values)/2 for key,values in pairs.items() if len(values)==2}
+    bins=[sum(round(value*4)==i for value in complete.values()) for i in range(5)]
+    clusters=defaultdict(list)
+    for key,value in complete.items(): clusters[identities[key]].append(value)
+    n=len(complete);k=len(clusters)
+    text=f'PAIR-BASED CONFIDENCE · Engine A minus B\nCompleted pairs: {n} · independent opening groups: {k}\nPentanomial [0, ½, 1, 1½, 2 points per pair]: {bins}\n'
+    if not n:return text+'Complete both color-reversed games before estimating pair-based strength.'
+    mean=sum(complete.values())/n
+    text+=f'Paired score: {mean:.2%} · logistic Elo: {elo(mean):+.1f}\n'
+    if k<10:return text+'Confidence estimates unavailable: need at least 10 distinct opening groups.\n'
+    variance=k/(k-1)*sum((sum(values)-mean*len(values))**2 for values in clusters.values())/n**2
+    se=math.sqrt(variance)
+    if se<=0:return text+'Confidence estimates unavailable: no variation between opening groups. An all-draw or all-win sample does not establish zero uncertainty.\n'
+    text+=f'Score standard error: {se:.2%}\n'
+    for level in (0.8,0.9,0.95,0.99):
+        z=NormalDist().inv_cdf((1+level)/2)
+        low,high=max(0,mean-z*se),min(1,mean+z*se)
+        text+=f'{level:.0%} Elo interval: {elo(low):+.1f} to {elo(high):+.1f} (score {low:.2%}–{high:.2%})\n'
+    text+=f'Approximate likelihood of superiority (normal LOS): {NormalDist().cdf((mean-0.5)/se):.2%}\n'
+    return text+'Fixed-sample normal approximation with opening-cluster robust standard errors. Repeated openings are grouped. Small or skewed samples can give unreliable coverage. LOS is not a Bayesian probability or a pass/fail verdict. Not Fishtest SPRT or normalized Elo; repeatedly checking these intervals is not a sequential test.'

@@ -56,7 +56,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.12 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.13 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -78,7 +78,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.12'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.13'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -270,6 +270,10 @@ class Window(QMainWindow):
         library_layout.addWidget(self.archive_selector)
         button('Open selected tournament', self.open_archive, library_layout)
         self.history_result_cards=ResultCards();library_layout.addWidget(self.history_result_cards)
+        self.confidence_stats=QPlainTextEdit();self.confidence_stats.setReadOnly(True)
+        self.confidence_stats.setMinimumHeight(180)
+        library_layout.addWidget(self.confidence_stats)
+        button('Engine health & tablebases…',self.open_diagnostics,library_layout)
         library_layout.addWidget(self.stats)
         self.tabs.addTab(library, 'Results & History')
         live = QWidget()
@@ -683,6 +687,10 @@ class Window(QMainWindow):
         finally:
             if was_active:self.tournament.resume()
 
+    def open_diagnostics(self):
+        from .diagnostics import show_diagnostics
+        show_diagnostics(self)
+
     def open_match_presets(self):
         from .review_tools import conditions_dialog
         conditions_dialog(self)
@@ -1088,6 +1096,8 @@ class Window(QMainWindow):
         statistics_key=(state['id'],tuple(g['result'] for g in state['games']))
         if getattr(self,'_statistics_key',None)!=statistics_key:
             self.stats.setPlainText(summarize(state));self._statistics_key=statistics_key
+            from .statistics import confidence_report
+            self.confidence_stats.setPlainText(confidence_report(state))
         self.update_clocks()
         self.status.setText(f"{mode.title()} · game {index+1}/{len(state['games'])}")
 
