@@ -1,3 +1,8 @@
+# 0.5.17
+
+- Isolate process controllers when switching engine executables or arguments, disconnecting retired engine signals before starting the next search. Late shutdown events can no longer affect the replacement controller.
+- Apply changed command-line arguments even when both profiles use the same executable.
+
 # 0.5.16
 
 - Preserve recent engine protocol and error output for a failed match search, and show it in engine diagnostics to help identify intermittent engine exits.

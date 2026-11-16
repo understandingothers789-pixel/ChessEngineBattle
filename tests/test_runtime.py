@@ -202,3 +202,24 @@ def test_export_actual_json_csv_and_pgn(qtbot,db,profile,tmp_path,monkeypatch):
             assert [m.uci() for m in game.mainline_moves()] == ['e2e4','e7e5']
             assert 'BattleConfig' in game.headers
     window.close()
+
+
+def test_switch_isolates_old_process_and_honors_arguments(qtbot, db, profile):
+    search = Search(db)
+    failures = []
+    search.failed.connect(failures.append)
+    try:
+        for i in range(12):
+            selected = replace(profile, arguments=profile.arguments + [f'--score-cp={i}'])
+            previous = search.engine
+            with qtbot.waitSignal(search.completed, timeout=10000):
+                search.start(Game(), selected, Limit('nodes', 1000))
+                if i:
+                    assert search.engine is not previous
+                    # A late error from the retired controller must not fail
+                    # the newly running search.
+                    previous.message.emit(previous.generation, 'error', {'message': 'old process exited'})
+            assert search.engine.connection.process.arguments() == selected.arguments
+        assert failures == []
+    finally:
+        search.close()

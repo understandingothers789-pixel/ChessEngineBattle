@@ -1,6 +1,7 @@
 """Qt asynchronous orchestration on Nocturne's existing UCI controller."""
 from dataclasses import asdict
 from copy import deepcopy
+from pathlib import Path
 from uuid import uuid4
 import time
 from .clocks import MatchClock
@@ -25,17 +26,9 @@ class Search(QObject):
     def __init__(self, db, parent=None):
         super().__init__(parent)
         self.db = db
-        self.engine = EngineController(self)
-        self.engine.set_history_capture(True)
-        # Adapt only the public request's go command. All transport, readiness,
-        # cancellation and PV validation continue through Nocturne unchanged.
-        self._transport_request = self.engine.connection.request
-        self.engine.connection.request = self._request
-        self.engine.connection.status.connect(self._search_status)
         self.clock_command = None
-        self.engine.connection.observation.connect(self.observe)
-        self.engine.message.connect(self.message)
-        self.engine.connection.configured.connect(self.configured)
+        self._engine_key = None
+        self._create_engine()
         self.context = None
         self.generation = None
         self.last_completed = None
@@ -45,9 +38,35 @@ class Search(QObject):
         self.render_timer = QTimer(self); self.render_timer.setSingleShot(True)
         self.render_timer.setInterval(80); self.render_timer.timeout.connect(self.flush_render)
 
+    def _create_engine(self):
+        self.engine = EngineController(self)
+        self.engine.set_history_capture(True)
+        # Adapt only the public request's go command. All transport, readiness,
+        # cancellation and PV validation continue through Nocturne unchanged.
+        self._transport_request = self.engine.connection.request
+        self.engine.connection.request = self._request
+        self.engine.connection.status.connect(self._search_status)
+        self.engine.connection.observation.connect(self.observe)
+        self.engine.message.connect(self.message)
+        self.engine.connection.configured.connect(self.configured)
+
     def start(self, game, profile, limit, multipv=1, provenance='live-playing', start=1_000_000,
               maximum=None, tournament=None, kind="continuous", silence_timeout_ms=120000, clock_command=None, save_best_changes=True):
         self.cancel()
+        key = (str(Path(profile.path).absolute()), tuple(profile.arguments))
+        if self._engine_key is not None and key != self._engine_key:
+            # A process object belongs to one executable invocation. Retire its
+            # signals before switching, so late shutdown output cannot affect
+            # the next engine's handshake or search.
+            old = self.engine
+            old.message.disconnect(self.message)
+            old.connection.status.disconnect(self._search_status)
+            old.connection.observation.disconnect(self.observe)
+            old.connection.configured.disconnect(self.configured)
+            old.close()
+            old.deleteLater()
+            self._create_engine()
+        self._engine_key = key
         limit.validate()
         if limit.mode == 'clock' and not clock_command:raise ValueError('Clock searches require both game clocks')
         self.clock_command=clock_command
