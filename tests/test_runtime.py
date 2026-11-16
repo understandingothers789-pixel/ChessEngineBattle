@@ -40,6 +40,23 @@ def test_incomplete_multipv_is_not_fabricated(qtbot,db,profile):
         search.close()
 
 
+def test_engine_exit_preserves_protocol_log_for_diagnostics(qtbot, db, profile):
+    from nocturne_battle.diagnostics import engine_report
+    search = Search(db)
+    try:
+        broken = replace(profile, arguments=profile.arguments + ['--crash'])
+        with qtbot.waitSignal(search.failed, timeout=10000):
+            search.start(Game(), broken, Limit('nodes', 1000))
+        record = db.export()['searches'][0]
+        assert record['status'] == 'failed'
+        report = engine_report([broken], failed_search=record)
+        assert 'Mock A' in report
+        assert '> go nodes 1000' in report
+        assert 'Engine process error' in report or 'Engine exited unexpectedly' in report
+    finally:
+        search.close()
+
+
 @pytest.mark.parametrize('limit,command',[ (Limit('depth',12),'go depth 12'), (Limit('movetime',0.2),'go movetime 200')])
 def test_limit_modes_are_exclusive(qtbot,db,profile,limit,command):
     search = Search(db)

@@ -1,3 +1,8 @@
+# 0.5.16
+
+- Preserve recent engine protocol and error output for a failed match search, and show it in engine diagnostics to help identify intermittent engine exits.
+- Existing failures from earlier versions do not contain this new log. This update does not claim to fix the underlying exit.
+
 # 0.5.15
 
 - Refresh both engine dropdowns after editing profiles, preserve unloaded selections, and keep the original profile when choosing a different engine executable.

@@ -154,6 +154,9 @@ class Search(QObject):
             return
         if kind in ('result', 'error'):
             data=dict(data,received_ns=time.monotonic_ns())
+            if kind == 'error':
+                # Retain recent protocol and stderr lines with the failed search.
+                data['engine_log'] = list(self.engine.connection.log)[-60:]
             self.watchdog.stop()
             self.flush_render()
             context, self.context = self.context, None

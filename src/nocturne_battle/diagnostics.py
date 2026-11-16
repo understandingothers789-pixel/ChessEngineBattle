@@ -1,12 +1,13 @@
 """On-demand local engine and Syzygy configuration diagnostics."""
 import os
+import json
 from pathlib import Path
 from PySide6.QtWidgets import QDialog,QVBoxLayout,QPlainTextEdit,QPushButton,QLabel
 from .model import executable_hash
 
 
-def engine_report(profiles,state=None):
-    rows=['ENGINE HEALTH / TABLEBASE DIAGNOSTICS', 'Local file checks only. Engine option support and actual tablebase probing are not verified here.']
+def engine_report(profiles,state=None,failed_search=None):
+    rows=['ENGINE HEALTH / TABLEBASE DIAGNOSTICS', 'File checks do not verify engine option support or actual tablebase probing.']
     for side,profile in enumerate(profiles):
         rows.append(f'\nENGINE {"AB"[side]} · {profile.name}\nExecutable: {profile.path}')
         try:
@@ -32,18 +33,32 @@ def engine_report(profiles,state=None):
             if game.get('termination'):
                 rows.append('Most recent ending: '+game['termination']);break
         rows.append('Tablebase hit counts reported by the engines appear in the live/recorded analysis. Zero hits alone does not prove a configuration problem.')
+    if failed_search:
+        result = failed_search.get('final_result', {})
+        rows.append('\nMOST RECENT FAILED SEARCH')
+        rows.append('Engine: ' + failed_search.get('profile', {}).get('name', 'Unknown'))
+        rows.append('Message: ' + str(result.get('message', 'Unavailable')))
+        rows.append('Recent engine output (may contain local paths):')
+        rows.extend(result.get('engine_log', []) or ['No protocol log was recorded for this failure.'])
     return '\n'.join(rows)
 
 
 def show_diagnostics(window):
     from .model import Profile
     dialog=QDialog(window);dialog.setWindowTitle('Engine health and tablebases');dialog.resize(760,540)
-    layout=QVBoxLayout(dialog);note=QLabel('Inspect match engines while a match is loaded, or selected engines before a match. Refresh checks local files without starting engine searches.');note.setWordWrap(True);layout.addWidget(note)
+    layout=QVBoxLayout(dialog);note=QLabel('Checks local files without starting engine searches. Recent failure details may include local file paths; review before sharing.');note.setWordWrap(True);layout.addWidget(note)
     output=QPlainTextEdit();output.setReadOnly(True);layout.addWidget(output)
     def refresh():
         state=window.tournament.state
         profiles=[Profile(**p) for p in state['profiles']] if state else [window.profiles[c.currentIndex()] for c in window.engines if c.currentIndex()>=0]
-        output.setPlainText(engine_report(profiles,state) if profiles else 'Load an engine first.')
+        failed = None
+        if state:
+            for (payload,) in window.db.db.execute("SELECT payload FROM searches WHERE status='failed' ORDER BY rowid DESC"):
+                candidate = json.loads(payload)
+                if candidate.get('tournament') == state.get('id'):
+                    failed = candidate
+                    break
+        output.setPlainText(engine_report(profiles,state,failed) if profiles else 'Load an engine first.')
     button=QPushButton('Refresh local checks');button.clicked.connect(refresh);layout.addWidget(button)
     close=QPushButton('Close');close.clicked.connect(dialog.accept);layout.addWidget(close)
     refresh();dialog.exec()
