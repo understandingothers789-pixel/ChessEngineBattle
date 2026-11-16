@@ -1,3 +1,8 @@
+# 0.5.18
+
+- Fresh Windows rebuild following an Application Control block of NumPy’s `_sfc64` extension. Includes the engine process isolation fix from 0.5.17.
+- A successful build/startup check does not establish acceptance by a user’s Windows Application Control policy.
+
 # 0.5.17
 
 - Isolate process controllers when switching engine executables or arguments, disconnecting retired engine signals before starting the next search. Late shutdown events can no longer affect the replacement controller.
