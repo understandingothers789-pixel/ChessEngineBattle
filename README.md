@@ -5,6 +5,8 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+- [Download Chess Engine Battle 0.5.16 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43825000296/artifacts/14205903194) — records the failing engine and recent protocol output for new failed match searches in Engine health & tablebases. This helps diagnose unexpected engine exits; the cause is not yet known. Windows tests and packaged startup passed. Extract the full ZIP. GitHub sign-in required; Actions downloads expire.
+
 - [Download Chess Engine Battle 0.5.15 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43811101794/artifacts/14200264172) — fixes saved engine settings and dropdown refresh, preserves existing profiles when choosing a different executable, and keeps selections correct when profiles are removed. 140 Windows tests passed, 1 skipped; packaged startup check passed. Extract the full ZIP. GitHub sign-in required; Actions downloads expire.
 
 - [Download Chess Engine Battle 0.5.14 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43775441752/artifacts/14186087212) — normalized Elo, approximate normalized confidence intervals and a preconfigured normalized pentanomial SPRT monitor using the Fishtest mathematical model. First decisions persist; match schedule continues. See [method and limitations](docs/CONFIDENCE.md). Windows tests and packaged startup check passed. Unsigned; Smart App Control acceptance is unverified. Extract the whole ZIP. GitHub sign-in required; Actions downloads expire.
