@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from pathlib import Path
 import pytest
 from PySide6.QtWidgets import QDialog
@@ -52,4 +53,54 @@ def test_load_assigns_engine_and_unload_does_not_select_last_profile(qtbot,db,pr
     with pytest.raises(ValueError,match='both A and B'):w.selected_profiles()
     assert db.get('profiles')  # Removing the selection retains the saved engine.
     assert db.get('workspace')['engines'][1]==-1
+    w.close()
+
+
+def test_edit_refreshes_names_and_preserves_unloaded_side(qtbot, db, profile, monkeypatch):
+    from nocturne_battle import app
+    w = Window(db); qtbot.addWidget(w)
+    w.profiles = [profile, replace(profile, name='Second', id='second')]
+    w.populate_profiles()
+    w.engines[0].setCurrentIndex(0); w.engines[1].setCurrentIndex(-1)
+    def accept(dialog):
+        dialog.profile = replace(profile, name='Renamed')
+        return QDialog.DialogCode.Accepted
+    monkeypatch.setattr(app.ProfileDialog, 'exec', accept)
+    w.edit_engine_settings(0)
+    assert [w.engines[0].itemText(i) for i in range(w.engines[0].count())] == ['Renamed', 'Second']
+    assert w.engines[1].currentIndex() == -1
+    assert db.get('profiles')[0]['name'] == 'Renamed'
+    assert db.get('workspace')['engines'] == [0, -1]
+    w.close()
+
+
+def test_shared_profile_edit_adds_selectable_copy(qtbot, db, profile, monkeypatch):
+    from nocturne_battle import app
+    w = Window(db); qtbot.addWidget(w)
+    w.profiles = [profile]; w.populate_profiles()
+    w.engines[0].setCurrentIndex(0); w.engines[1].setCurrentIndex(0)
+    def accept(dialog):
+        dialog.profile = replace(profile, name='New engine', id='new-profile')
+        return QDialog.DialogCode.Accepted
+    monkeypatch.setattr(app.ProfileDialog, 'exec', accept)
+    w.edit_engine_settings(0)
+    assert [w.engines[0].itemText(i) for i in range(w.engines[0].count())] == ['Mock A', 'New engine · A']
+    assert w.engines[0].currentIndex() == 1 and w.engines[1].currentIndex() == 0
+    assert len(db.get('profiles')) == 2
+    w.close()
+
+
+def test_selecting_different_executable_keeps_original_profile(qtbot, db, profile, monkeypatch, tmp_path):
+    from nocturne_battle import app
+    w = Window(db); qtbot.addWidget(w)
+    w.profiles = [profile, replace(profile, name='Other', id='other')]; w.populate_profiles()
+    w.engines[0].setCurrentIndex(0); w.engines[1].setCurrentIndex(1)
+    def accept(dialog):
+        dialog.profile = replace(profile, name='New engine', path=str(tmp_path/'new-engine'), id='new-profile')
+        return QDialog.DialogCode.Accepted
+    monkeypatch.setattr(app.ProfileDialog, 'exec', accept)
+    w.edit_engine_settings(0)
+    assert [p.name for p in w.profiles] == ['Mock A', 'Other', 'New engine']
+    assert w.engines[0].currentIndex() == 2 and w.engines[1].currentIndex() == 1
+    assert db.get('workspace')['engines'] == [2, 1]
     w.close()

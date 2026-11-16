@@ -56,7 +56,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.14 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.15 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -78,7 +78,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.14'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.15'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -563,9 +563,13 @@ class Window(QMainWindow):
         if hasattr(self,'welcome'):self.welcome.setVisible(not self.profiles)
         for control in self.engines:
             index = control.currentIndex()
+            initial = control.count() == 0
+            control.blockSignals(True)
             control.clear()
             control.addItems([p.name for p in self.profiles])
-            control.setCurrentIndex(max(0, index))
+            control.setCurrentIndex(0 if initial and self.profiles else index if -1 <= index < len(self.profiles) else -1)
+            control.blockSignals(False)
+        self.refresh_engine_names()
 
     def refresh_engine_names(self):
         if hasattr(self,'tb_status'):self.refresh_setup_status()
@@ -627,8 +631,13 @@ class Window(QMainWindow):
     def remove_profile(self):
         if not self.profiles or self.engines[0].currentIndex()<0: return
         if QMessageBox.question(self, 'Remove profile', 'Remove this profile? Historical searches are retained.') != QMessageBox.StandardButton.Yes: return
-        self.profiles.pop(self.engines[0].currentIndex())
+        removed = self.engines[0].currentIndex()
+        selections = [c.currentIndex() for c in self.engines]
+        self.profiles.pop(removed)
         self.db.put('profiles', [asdict(p) for p in self.profiles]); self.populate_profiles()
+        for control, index in zip(self.engines, selections):
+            control.setCurrentIndex(-1 if index == removed else index - 1 if index > removed else index)
+        self.save_settings()
 
     def swap_budgets(self):
         a,b = [c.text() for c in self.budgets]
@@ -652,12 +661,16 @@ class Window(QMainWindow):
             if group.title().startswith('Engine options'):group.setChecked(True)
         QTimer.singleShot(0,dialog.validate)
         if dialog.exec()==QDialog.DialogCode.Accepted:
-            if self.engines[1-side].currentIndex()==index:
-                dialog.profile.name=dialog.profile.name+' · '+ 'AB'[side]
+            different_engine = Path(dialog.profile.path).resolve() != Path(original.path).resolve()
+            if different_engine or self.engines[1-side].currentIndex()==index:
+                if not different_engine:
+                    dialog.profile.name=dialog.profile.name+' · '+ 'AB'[side]
                 self.profiles.append(dialog.profile);self.populate_profiles();self.engines[side].setCurrentIndex(len(self.profiles)-1)
             else:
                 dialog.profile.id=original.id;self.profiles[index]=dialog.profile
+                self.populate_profiles()
             self.db.put('profiles',[asdict(p) for p in self.profiles])
+            self.save_settings()
         self.refresh_setup_status()
 
     def open_setup(self):

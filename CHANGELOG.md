@@ -1,3 +1,8 @@
+# 0.5.15
+
+- Refresh both engine dropdowns after editing profiles, preserve unloaded selections, and keep the original profile when choosing a different engine executable.
+- Keep the other side’s selection correct when a profile is removed.
+
 # Chess Engine Battle changes
 
 Download links and validation details are in [README.md](README.md#build-downloads).
