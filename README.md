@@ -5,6 +5,8 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+- [Download Chess Engine Battle 0.5.19 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/44205630972/artifacts/14383991220) — fresh rebuild. Windows tests and packaged startup passed. Compatibility with the reported Application Control policy remains unverified. Extract the full ZIP. GitHub sign-in required.
+
 - [Download Chess Engine Battle 0.5.18 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43966100229/artifacts/14276366252) — fresh rebuild after a reported Windows Application Control block of NumPy’s `_sfc64` extension. Includes the 0.5.17 engine switching fix. Windows tests and packaged startup passed; acceptance by the user’s Application Control policy remains unverified. Extract the full ZIP. GitHub sign-in required; Actions downloads expire.
 
 - [Download Chess Engine Battle 0.5.17 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/43825601446/artifacts/14206134006) — isolates process controllers across engine executable/argument switches so retired engine signals cannot affect the next search. Includes regression coverage for repeated switches and late errors. Windows tests and packaged startup passed. This addresses unsafe process reuse; the intermittent exit reported on a user machine has not been independently reproduced. Extract the full ZIP. GitHub sign-in required; Actions downloads expire.
