@@ -1,3 +1,7 @@
+# 0.5.20
+
+- Use a pure Python solver for the SPRT calculation and remove SciPy and NumPy from the Windows package. This removes the NumPy extension named in the Application Control error.
+
 # 0.5.19
 
 - Fresh Windows rebuild for another installation attempt.

@@ -4,7 +4,6 @@ Independent implementation of normalized_elo_practical.pdf. No upstream code is
 bundled. The numerical result is compared against upstream in regression work.
 """
 import math
-from scipy.optimize import brentq
 
 FACTOR=800/math.log(10)
 
@@ -34,7 +33,22 @@ def constrained_fit(observed,target):
         sd=math.sqrt(variance)
         offsets=[i/4-.5-target*sd*(1+((mean-i/4)/sd)**2)/2 for i in range(5)]
         lo=-1/max(offsets)+1e-9;hi=-1/min(offsets)-1e-9
-        root=brentq(lambda x:sum(p*d/(1+x*d) for p,d in zip(observed,offsets)),lo,hi)
+        # On this interval all denominators are positive and the score
+        # decreases monotonically. Bisection needs no native dependencies.
+        def score(x):
+            return sum(p * d / (1 + x * d) for p, d in zip(observed, offsets))
+
+        if score(lo) < 0 or score(hi) > 0:
+            raise ValueError('Normalized likelihood root is not bracketed')
+        while hi - lo > 1e-12:
+            mid = (lo + hi) / 2
+            if mid == lo or mid == hi:
+                break
+            if score(mid) > 0:
+                lo = mid
+            else:
+                hi = mid
+        root = (lo + hi) / 2
         new=[p/(1+root*d) for p,d in zip(observed,offsets)]
         change=max(abs(a-b) for a,b in zip(new,fitted));fitted=new
         if change<1e-9:break

@@ -17,6 +17,13 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
       - run: pyinstaller --clean --noconfirm ChessEngineBattle.spec
+      - name: Verify NumPy and SciPy are absent from the package
+        shell: pwsh
+        run: |
+          $blocked = Get-ChildItem dist/ChessEngineBattle -Recurse | Where-Object {
+            $_.Name -match '^(numpy|scipy)(\.|$)|^_sfc64'
+          }
+          if ($blocked) { throw "Unexpected native dependency: $blocked" }
       - name: Packaged Windows startup and render smoke test
         run: python -c "import subprocess; subprocess.run(['dist/ChessEngineBattle/ChessEngineBattle.exe', '--smoke-test'], timeout=45, check=True)"
         env:
@@ -30,5 +37,5 @@ jobs:
           Get-FileHash dist/ChessEngineBattle/ChessEngineBattle.exe -Algorithm SHA256 | Format-List | Out-File -Append dist/ChessEngineBattle/BUILD-INFO.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: ChessEngineBattle-0.5.19-Windows
+          name: ChessEngineBattle-0.5.20-Windows
           path: dist/ChessEngineBattle/

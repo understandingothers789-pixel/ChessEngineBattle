@@ -56,7 +56,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.19 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.20 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -78,7 +78,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.19'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.20'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -1718,6 +1718,10 @@ def main():
     window = Window(Database(directory / 'battle.sqlite'))
     window.show()
     if '--smoke-test' in sys.argv:
+        from .sequential import log_likelihood
+        if abs(log_likelihood([10, 20, 100, 25, 15], 0, 5) - 0.2954390532101659) > 1e-9:
+            window.close()
+            return 1
         def smoke():
             success = not window.grab().isNull() and window.board.isVisible()
             window.close()

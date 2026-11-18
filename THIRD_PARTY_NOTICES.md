@@ -22,7 +22,6 @@ Bundled opening suites: official-stockfish/books, CC0 1.0 Universal.
 https://github.com/official-stockfish/books . Upstream names and counts are
 preserved; books/LICENSE.txt contains the license, books/README.txt provenance.
 
-SciPy and NumPy: BSD-3-Clause; https://scipy.org/ and https://numpy.org/.
 Their distributions include dependency license notices.
 Normalized pentanomial SPRT mathematical reference:
 https://www.cantate.be/Fishtest/normalized_elo_practical.pdf and

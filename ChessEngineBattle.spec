@@ -3,8 +3,8 @@ import sys
 from PyInstaller.utils.hooks import collect_data_files, copy_metadata
 
 a = Analysis(['scripts/desktop_entry.py'],
-             datas=collect_data_files('nocturne_battle', excludes=['books/*']) + collect_data_files('nocturne') + copy_metadata('nocturne-chess') + copy_metadata('chess') + copy_metadata('scipy') + copy_metadata('numpy') + [('COPYING', '.'), ('THIRD_PARTY_NOTICES.md', '.')],
-             hiddenimports=[], hookspath=[], excludes=['tkinter'])
+             datas=collect_data_files('nocturne_battle', excludes=['books/*']) + collect_data_files('nocturne') + copy_metadata('nocturne-chess') + copy_metadata('chess') + [('COPYING', '.'), ('THIRD_PARTY_NOTICES.md', '.')],
+             hiddenimports=[], hookspath=[], excludes=['tkinter', 'numpy', 'scipy'])
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='ChessEngineBattle',
           console=False, debug=False, strip=False, upx=False, icon='src/nocturne_battle/assets/app.ico',
