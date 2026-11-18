@@ -1,3 +1,7 @@
+# 0.5.19
+
+- Fresh Windows rebuild for another installation attempt.
+
 # 0.5.18
 
 - Fresh Windows rebuild following an Application Control block of NumPy’s `_sfc64` extension. Includes the engine process isolation fix from 0.5.17.
