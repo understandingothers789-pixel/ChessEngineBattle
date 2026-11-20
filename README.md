@@ -5,6 +5,8 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+- [Download Chess Engine Battle 0.5.22 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/44785464862/artifacts/14654036975) — choose search modes independently, including clock versus fixed depth or nodes. Windows tests and packaged startup passed. Extract the full ZIP. GitHub sign-in required.
+
 - [Download Chess Engine Battle 0.5.21 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/44784388960/artifacts/14654080805) — separate playing MultiPV controls for both engines, including when they use the same Stockfish profile. Windows tests and packaged startup passed. Extract the full ZIP. GitHub sign-in required.
 
 - [Download Chess Engine Battle 0.5.20 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/44207717536/artifacts/14384233524) — removes SciPy and NumPy, including the extension blocked by Windows Application Control. Windows tests, package contents check, and packaged startup and SPRT calculation passed. Extract the full ZIP. GitHub sign-in required.
