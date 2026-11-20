@@ -32,3 +32,26 @@ def test_export_statistics_uses_white_perspective_and_actual_elapsed(tmp_path):
     assert rows[0]['eval_white_pawns']=='-0.7'
     assert rows[0]['engine_side']=='B' and rows[0]['nodes']=='12345'
     assert rows[0]['elapsed_seconds']=='1.0' and rows[0]['clock_after_seconds']=='2.0'
+
+
+def test_saved_match_description_includes_limits_and_a_elo(profile):
+    from dataclasses import asdict
+    from nocturne_battle.model import Limit, schedule, openings
+    from nocturne_battle.runtime import Tournament
+    state = {'profiles': [asdict(profile), asdict(profile)],
+             'limits': [asdict(Limit('depth', 16)), asdict(Limit('depth', 12))],
+             'multipv_by_side': [1, 2], 'opening_book': '/books/test.epd',
+             'games': schedule(openings(None), 2)}
+    state['games'][0]['result'] = '1-0'
+    state['games'][1]['result'] = '0-1'
+    state['games'][2]['result'] = '1/2-1/2'
+    description = Window.archive_description(state)
+    assert 'depth 16' in description and 'depth 12' in description
+    assert 'MultiPV 2' in description and 'test.epd' in description
+    assert 'A − B +280 Elo (estimate)' in description
+    state['opening_book'] = None
+    for game in state['games']: game['result'] = '*'
+    assert 'Elo unavailable' in Window.archive_description(state)
+    assert 'Opening book not recorded' in Window.archive_description(state)
+    state['games'][0]['result'] = '1-0'
+    assert 'Elo unbounded' in Window.archive_description(state)

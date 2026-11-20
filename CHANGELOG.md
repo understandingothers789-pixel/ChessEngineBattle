@@ -1,3 +1,7 @@
+# 0.5.24
+
+- Saved matches display each engine’s search limit and MultiPV, the estimated A-minus-B Elo difference, and the opening book for newly created matches. Earlier matches without a recorded book say so.
+
 # 0.5.23
 
 - Engine cards show each side’s configured depth, node limit, clock or movetime and MultiPV.

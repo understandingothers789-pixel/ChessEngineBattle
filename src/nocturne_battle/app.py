@@ -56,7 +56,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.23 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.24 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -78,7 +78,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.23'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.24'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -797,15 +797,48 @@ class Window(QMainWindow):
         self.restore_live_analysis()
         self.games_body.parentWidget().setChecked(True)
 
+    @staticmethod
+    def archive_description(state):
+        from .statistics import dashboard
+        from datetime import datetime
+
+        def condition(side):
+            profile = state['profiles'][side]['name']
+            limit = state.get('limits', [{}, {}])[side]
+            mode, value = limit.get('mode'), limit.get('value')
+            if mode == 'nodes' and value is not None:
+                budget = f"{value:,} nodes"
+            elif mode == 'depth':
+                budget = f"depth {value}"
+            elif mode == 'movetime' and value is not None:
+                budget = f"{value:g} sec/move"
+            elif mode == 'clock' and value is not None:
+                budget = f"{value / 60000:g} min + {limit.get('increment_ms', 0) / 1000:g} sec"
+            else:
+                budget = 'limit unavailable'
+            pv = state.get('multipv_by_side', [state.get('multipv', 1)] * 2)[side]
+            return f"{profile} ({budget}, MultiPV {pv})"
+
+        summary = dashboard(state)
+        estimate = summary['elo']
+        if estimate is None:
+            elo_text = 'Elo unavailable'
+        elif not math.isfinite(estimate):
+            elo_text = 'Elo unbounded (one-sided results)'
+        else:
+            elo_text = f"A − B {estimate:+.0f} Elo (estimate)"
+        date = datetime.fromtimestamp(state['created_at']).strftime('%b %d, %Y %H:%M') if state.get('created_at') else 'Earlier match'
+        book = state.get('opening_book')
+        book_text = Path(book).name if book else ('Starting position' if book == '' else 'Opening book not recorded')
+        title = state.get('name') or ' vs '.join(p['name'] for p in state['profiles'])
+        return (f"{title} · {date} · {summary['wins'] + summary['losses'] + summary['draws']}/{len(state['games'])} games\n"
+                f"A {condition(0)} vs B {condition(1)} · {elo_text} · {book_text}")
+
     def refresh_archives(self):
         self.archive_selector.clear()
         self.archive_selector.addItem('Select a saved tournament…',None)
-        from datetime import datetime
         for state in self.db.archives():
-            count = sum(g['result'] != '*' for g in state['games'])
-            date = datetime.fromtimestamp(state['created_at']).strftime('%b %d, %Y %H:%M') if state.get('created_at') else 'Earlier match'
-            name = state.get('name') or ' vs '.join(p['name'] for p in state['profiles'])
-            self.archive_selector.addItem(f"{name} · {date} · {count}/{len(state['games'])} games",state['id'])
+            self.archive_selector.addItem(self.archive_description(state), state['id'])
 
     def save_match_file(self):
         if not self.tournament.state:return
@@ -1023,6 +1056,7 @@ class Window(QMainWindow):
             self.tournament.create(profiles, limits, schedule(openings(self.book.text()),
                 self.pairs.value(), self.seed.value(), self.randomized.isChecked()),
                 self.play_pv.value(), start, maximum, self.seed.value(), multipv_b=self.play_pv_b.value())
+            self.tournament.state['opening_book'] = self.book.text().strip()
             self.tournament.state['silence_timeout_ms']=self.silence_timeout.value()*1000
             self.tournament.state['clock_buffer_seconds']=self.clock_buffer.value()
             if sprt_config:self.tournament.state['sprt']=sprt_config
