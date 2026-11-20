@@ -1,3 +1,7 @@
+# 0.5.21
+
+- Set playing MultiPV independently for Engine A and Engine B. Fixed depth and node matches support different search budgets and MultiPV values even when both sides select the same profile. Match presets retain both values.
+
 # 0.5.20
 
 - Use a pure Python solver for the SPRT calculation and remove SciPy and NumPy from the Windows package. This removes the NumPy extension named in the Application Control error.

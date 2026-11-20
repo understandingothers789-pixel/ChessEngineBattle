@@ -36,7 +36,7 @@ class ScalingPanel(QWidget):
     def __init__(self, window, runner):
         super().__init__(); self.window=window; self.runner=runner
         layout=QVBoxLayout(self)
-        label=QLabel('Node Scaling Experiment · uses selected Engine A profile, opening suite, pairs, seed and playing MultiPV from Match Setup. Conditions run sequentially with identical paired openings.'); label.setWordWrap(True);layout.addWidget(label)
+        label=QLabel('Node Scaling Experiment · uses selected Engine A profile, opening suite, pairs, seed and Engine A playing MultiPV from Match Setup. Conditions run sequentially with identical paired openings.'); label.setWordWrap(True);layout.addWidget(label)
         row=QHBoxLayout(); self.base=QLineEdit('1M');self.ratios=QLineEdit('2, 5, 10, 25, 50, 100')
         row.addWidget(QLabel('Base nodes'));row.addWidget(self.base);row.addWidget(QLabel('Ratios'));row.addWidget(self.ratios);layout.addLayout(row)
         for title,callback in [('Build experiment',self.build),('Start / resume experiment',self.resume),('Pause experiment',runner.pause),('Export full experiment JSON',self.export)]:

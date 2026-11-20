@@ -1,7 +1,7 @@
 from dataclasses import replace
 import pytest
 from nocturne.core.game import Game
-from nocturne_battle.model import Limit, schedule
+from nocturne_battle.model import Limit, openings, schedule
 from nocturne_battle.runtime import Search, Tournament
 from nocturne_battle.app import Window, ProfileDialog
 
@@ -223,3 +223,32 @@ def test_switch_isolates_old_process_and_honors_arguments(qtbot, db, profile):
         assert failures == []
     finally:
         search.close()
+
+
+@pytest.mark.parametrize('mode,budgets', [('depth', (12, 10)), ('nodes', (1200, 1000))])
+@pytest.mark.parametrize('pv_b', [1, 2])
+def test_asymmetric_match_limits_and_multipv(qtbot, db, profile, mode, budgets, pv_b):
+    tournament = Tournament(db)
+    try:
+        tournament.create([profile, profile], [Limit(mode, n) for n in budgets],
+                          schedule(openings(''), 1), multipv=1, multipv_b=pv_b)
+        tournament.state['max_plies'] = 2
+        tournament.save()
+        tournament.resume()
+        qtbot.waitUntil(lambda: tournament.state['index'] == 2, timeout=10000)
+        assert tournament.clock is None
+        assert db.get('tournament')['multipv_by_side'] == [1, pv_b]
+        for game in tournament.state['games']:
+            for ply in (1, 2):
+                side = 0 if (ply == 1) == game['a_white'] else 1
+                run = db.search_run(game['move_searches'][str(ply)]['search_run_id'])
+                assert run['limit']['value'] == budgets[side]
+                assert run['multipv'] == (1, pv_b)[side]
+                applied = run['final_result']['lines']['1']['applied_options']
+                assert int(applied['MultiPV']) == (1, pv_b)[side]
+        commands = [line for line in tournament.search.engine.connection.log if line.startswith('> go ')]
+        assert len(commands) == 4
+        assert set(commands) == {f'> go {mode} {n}' for n in budgets}
+    finally:
+        tournament.pause()
+        tournament.search.close()

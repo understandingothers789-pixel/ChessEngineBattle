@@ -218,6 +218,11 @@ class Search(QObject):
         self.engine.close()
 
 
+def playing_multipv(state, side):
+    values = state.get('multipv_by_side')
+    return values[side] if values is not None else state['multipv']
+
+
 class Tournament(QObject):
     changed = Signal()
     clock_changed = Signal()
@@ -255,15 +260,19 @@ class Tournament(QObject):
             self.clock=MatchClock.restore(item['clock']) if item.get('clock') else MatchClock.create(limits,item['a_white'])
         if item['result'] != '*':self.game.declared=Outcome(item['result'],item.get('termination','Stored result'))
 
-    def create(self, profiles, limits, games, multipv=1, checkpoint=1_000_000, maximum=None, seed=0):
+    def create(self, profiles, limits, games, multipv=1, checkpoint=1_000_000, maximum=None, seed=0, *, multipv_b=None):
         if self.active:
             raise ValueError('Pause the current match first')
         for limit in limits:limit.validate()
+        if any(type(pv) is not int or not 1 <= pv <= 5 for pv in (multipv, multipv if multipv_b is None else multipv_b)):
+            raise ValueError('Playing MultiPV must be 1–5 for each engine.')
         if any(limit.mode == 'clock' for limit in limits) and not all(limit.mode == 'clock' for limit in limits):raise ValueError('Both engines must use clock mode together')
         self.state = dict(id=str(uuid4()), profiles=[asdict(p) for p in profiles],
                           limits=[asdict(l) for l in limits], games=games, index=0,
                           multipv=multipv, checkpoint=checkpoint, maximum=maximum, seed=seed,
                           draw_rule=dict(DEFAULT_RULE), clock_buffer_seconds=0.2, created_at=time.time(), name=f'{profiles[0].name} vs {profiles[1].name}')
+        if multipv_b is not None:
+            self.state['multipv_by_side'] = [multipv, multipv_b]
         self.restore_game()
         self.save()
 
@@ -340,7 +349,7 @@ class Tournament(QObject):
         side = 0 if a_turn else 1
         try:
             self.search.start(self.game, Profile(**self.state['profiles'][side]),
-                              Limit(**self.state['limits'][side]), self.state['multipv'],
+                              Limit(**self.state['limits'][side]), playing_multipv(self.state, side),
                               start=self.state['checkpoint'], maximum=self.state['maximum'],
                               tournament=self.state['id'],silence_timeout_ms=0 if self.clock else self.state.get('silence_timeout_ms',120000),
                               clock_command=self.clock.uci() if self.clock else None,

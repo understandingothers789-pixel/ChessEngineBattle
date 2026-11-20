@@ -20,7 +20,7 @@ def export_move_statistics(item, db, path):
             out.writerow([key,fen[5],'White' if turn==1 else 'Black','A' if (turn==1)==item['a_white'] else 'B',link.get('played_move',link.get('bestmove','')),cp/100 if cp is not None else '',line.get('score_value','')*turn if line.get('score_type')=='mate' else '',line.get('depth',''),line.get('nodes',''),line.get('time',''),elapsed/1e9 if elapsed is not None else '',clock/1e9 if clock is not None else '',line.get('tbhits','')])
 
 
-VALUE_FIELDS=('pairs','play_pv','draw_start','clock_buffer','silence_timeout','seed','sprt_h0','sprt_h1','sprt_alpha','sprt_beta')
+VALUE_FIELDS=('pairs','play_pv','play_pv_b','draw_start','clock_buffer','silence_timeout','seed','sprt_h0','sprt_h1','sprt_alpha','sprt_beta')
 TEXT_FIELDS=('book','checkpoint','maximum')
 CHECK_FIELDS=('auto_draw','keep_best_changes','randomized','sprt_enabled')
 
@@ -36,6 +36,8 @@ def capture_conditions(window):
 def apply_conditions(window,data):
     for name in VALUE_FIELDS:
         if name in data['values']:getattr(window,name).setValue(data['values'][name])
+    if 'play_pv_b' not in data['values'] and 'play_pv' in data['values']:
+        window.play_pv_b.setValue(data['values']['play_pv'])
     for name in TEXT_FIELDS:getattr(window,name).setText(data['texts'][name])
     for name in CHECK_FIELDS:
         if name in data['checks']:getattr(window,name).setChecked(data['checks'][name])

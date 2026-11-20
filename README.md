@@ -288,13 +288,22 @@ no Git worktree is required.
    node/depth values are integers. No limit types are silently combined.
 4. Choose a PGN/EPD opening suite, or leave blank for the starting position.
    Every opening pair uses the identical starting FEN with colors reversed.
-   Set pair count (100 means 200 games), playing MultiPV (default 1), and the
+   Set pair count (100 means 200 games), each engine’s playing MultiPV, and the
    first checkpoint. The B:A node ratio presets apply in nodes mode.
 5. Start, pause or resume the match. Each committed move and game result is saved.
    A paused/interrupted move restarts its search; previous observations retain
    their interrupted status. Do not run multiple copies on the same database.
 
-New matches default to playing MultiPV 3 (saved settings are retained).
+To compare Stockfish at depth 12 and depth 10, select the same Stockfish
+profile for A and B. In **Engines & Search Limits**, choose **depth**, enter
+**12** for A and **10** for B, and set the separate **playing MultiPV** controls
+to **1 / 1**. For the second match, change B’s MultiPV to **2**. Save each setup
+as a named preset if you plan to repeat it. For a node-based comparison, select
+**nodes** and enter the two node budgets. Depth and nodes use no chess clock.
+To allow an engine to go indefinitely without reporting search progress, set
+**Search silence timeout** to **0** in advanced match settings.
+
+New matches default to playing MultiPV 3 per engine (saved settings are retained).
 Playing MultiPV >1 can affect strength. Supplementary analysis is a separate job
 and never chooses tournament moves. Engines must advertise MultiPV for counts
 above one; unavailable ranks are never fabricated. NNUE paths explicitly set via

@@ -8,9 +8,15 @@ def test_match_preset_restores_conditions_without_changing_engines(qtbot,db,prof
     w=Window(db);qtbot.addWidget(w)
     w.mode.setCurrentText('clock');w.clock_bases[0].setValue(3)
     w.clock_buffer.setValue(0.35);w.draw_start.setValue(42);w.pairs.setValue(7)
+    w.play_pv.setValue(1);w.play_pv_b.setValue(2)
     saved=capture_conditions(w);engines=[c.currentIndex() for c in w.engines]
     w.clock_bases[0].setValue(1);w.draw_start.setValue(30);w.pairs.setValue(1)
+    w.play_pv.setValue(4);w.play_pv_b.setValue(5)
     apply_conditions(w,saved)
+    assert (w.play_pv.value(), w.play_pv_b.value()) == (1, 2)
+    saved["values"].pop("play_pv_b")
+    apply_conditions(w,saved)
+    assert w.play_pv_b.value() == 1
     assert w.clock_bases[0].value()==3 and w.draw_start.value()==42 and w.pairs.value()==7
     assert w.clock_buffer.value()==0.35
     assert [c.currentIndex() for c in w.engines]==engines

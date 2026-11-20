@@ -28,7 +28,7 @@ from nocturne.snapshots import node_label
 
 from .history import compare, select_checkpoint
 from .model import Database, Profile, Limit, executable_hash, openings, schedule
-from .runtime import Search, Tournament
+from .runtime import Search, Tournament, playing_multipv
 from .time_editor import MinutesSeconds
 from .game_browser import GameBrowser
 from .studio import EngineScoreboard, ResultCards
@@ -56,7 +56,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.20 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.21 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -78,7 +78,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.20'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.21'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -392,6 +392,13 @@ class Window(QMainWindow):
         form.addRow('Search mode', self.mode)
         form.addRow('Engine A search budget', self.budgets[0])
         form.addRow('Engine B search budget', self.budgets[1])
+        self.play_pv = QSpinBox()
+        self.play_pv_b = QSpinBox()
+        for side, control in zip('AB', (self.play_pv, self.play_pv_b)):
+            control.setRange(1, 5)
+            control.setValue(3)
+            control.setToolTip('Number of candidate lines this engine searches per move. The engine still plays its best move.')
+            form.addRow(f'Engine {side} playing MultiPV', control)
         self.clock_group=QGroupBox('Clock controls — base time + increment')
         clock_form=QFormLayout(self.clock_group)
         preset=QComboBox();preset.addItem('Apply a clock preset…',None)
@@ -449,11 +456,7 @@ class Window(QMainWindow):
         self.pairs.valueChanged.connect(self.update_pair_description)
         form.addRow(self.pair_description)
         self.update_pair_description()
-        self.play_pv = QSpinBox()
-        self.play_pv.setRange(1, 5)
-        self.play_pv.setValue(3)
-        self.play_pv.setToolTip('Number of candidate variations each playing engine searches and saves for every move. More variations can reduce playing strength at the same time or node budget. Requires engine MultiPV support.')
-        form.addRow('Playing MultiPV', self.play_pv)
+
         self.keep_best_changes=QCheckBox('Save previous best lines when the top move changes')
         self.keep_best_changes.setChecked(True)
         self.keep_best_changes.setToolTip('Works even with MultiPV 1. Save the last reported old best line, depth, score and nodes before each top-move change. Repeated changes back to a prior move are kept as separate events. View these in recorded move analysis. Applies to new matches.')
@@ -973,7 +976,7 @@ class Window(QMainWindow):
                 old = self.tournament.state
                 self.db.put('tournament:'+old['id'], old)
             description = '\n'.join(f"{p.name}: "+(f"{l.value/60000:g} min + {l.increment_ms/1000:g} sec" if l.mode=='clock' else f"{l.value:,} {l.mode}")+f", Threads={p.options.get('Threads','default')}, Hash={p.options.get('Hash','default')}" for p,l in zip(profiles,limits))
-            description += f"\n{self.pairs.value()*2} games · {self.book.text() or 'start position'} · Playing PV{self.play_pv.value()} · checkpoints from {start:,}"
+            description += f"\n{self.pairs.value()*2} games · {self.book.text() or 'start position'} · Engine A MultiPV {self.play_pv.value()} · Engine B MultiPV {self.play_pv_b.value()} · checkpoints from {start:,}"
             for profile in profiles:
                 path=next((v for k,v in profile.options.items() if k.lower()=='syzygypath' and v),'not configured')
                 description+=f'\n{profile.name} · tablebases: {path}'
@@ -985,7 +988,7 @@ class Window(QMainWindow):
             self.cancel_analysis()
             self.tournament.create(profiles, limits, schedule(openings(self.book.text()),
                 self.pairs.value(), self.seed.value(), self.randomized.isChecked()),
-                self.play_pv.value(), start, maximum, self.seed.value())
+                self.play_pv.value(), start, maximum, self.seed.value(), multipv_b=self.play_pv_b.value())
             self.tournament.state['silence_timeout_ms']=self.silence_timeout.value()*1000
             self.tournament.state['clock_buffer_seconds']=self.clock_buffer.value()
             if sprt_config:self.tournament.state['sprt']=sprt_config
@@ -1297,7 +1300,7 @@ class Window(QMainWindow):
         tb = f"TB hits {info['tbhits']:,}" if isinstance(info.get('tbhits'), int) else 'TB hits not reported'
         self.live_labels[side].setText(f"ENGINE {'AB'[side]} · {'White' if game.board.turn == 1 else 'Black'} · move {game.board.native.fullmove_number} · depth {info.get('depth',0)} · {info.get('nodes',0):,} nodes · {tb}{clock_text}")
         if True:
-            self.live_panels[side].set_multipv(self.tournament.state['multipv'])
+            self.live_panels[side].set_multipv(playing_multipv(self.tournament.state, side))
             self.live_panels[side].update_line(info, game.board.turn)
         if self.follow_live:self.evalbar.set_score(info.get('score',0)*game.board.turn)
         self.status.setText(f"Playing · Engine {'AB'[side]} · {info.get('nodes', 0):,} reported nodes")
@@ -1641,7 +1644,7 @@ class Window(QMainWindow):
     def save_settings(self):
         self.db.put('workspace', dict(sprt_enabled=self.sprt_enabled.isChecked(),sprt_h0=self.sprt_h0.value(),sprt_h1=self.sprt_h1.value(),sprt_alpha=self.sprt_alpha.value(),sprt_beta=self.sprt_beta.value(),clock_bases=[c.value() for c in self.clock_bases],clock_increments=[c.value() for c in self.clock_increments], clock_buffer=self.clock_buffer.value(),silence_timeout=self.silence_timeout.value(), geometry=bytes(self.saveGeometry().toHex()).decode(), workspace=self.workspace.currentIndex(), splitter=self.splitter.sizes(), board_splitter=self.board_splitter.sizes(), table_widths=[self.games_table.columnWidth(i) for i in range(8)], mode=self.mode.currentText(),
             budgets=[x.text() for x in self.budgets], engines=[x.currentIndex() for x in self.engines],
-            keep_best_changes=self.keep_best_changes.isChecked(), ui_layout=2, full_variations=self.full_variations.isChecked(), book=self.book.text(), pairs=self.pairs.value(), play_pv=self.play_pv.value(), auto_draw=self.auto_draw.isChecked(), draw_start=self.draw_start.value(),
+            keep_best_changes=self.keep_best_changes.isChecked(), ui_layout=2, full_variations=self.full_variations.isChecked(), book=self.book.text(), pairs=self.pairs.value(), play_pv=self.play_pv.value(), play_pv_b=self.play_pv_b.value(), auto_draw=self.auto_draw.isChecked(), draw_start=self.draw_start.value(),
             checkpoint=self.checkpoint.text(), maximum=self.maximum.text(), seed=self.seed.value(),
             randomized=self.randomized.isChecked(), ratio=self.ratio.currentText(), dual=self.dual.isChecked()))
 
@@ -1668,6 +1671,7 @@ class Window(QMainWindow):
         self.book.setText(state['book'])
         self.pairs.setValue(state['pairs'])
         self.play_pv.setValue(state['play_pv'])
+        self.play_pv_b.setValue(state.get('play_pv_b', state['play_pv']))
         self.keep_best_changes.setChecked(state.get('keep_best_changes',True))
         self.full_variations.setChecked(state.get('full_variations',False))
         self.auto_draw.setChecked(state.get('auto_draw',True))
