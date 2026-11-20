@@ -1,3 +1,7 @@
+# 0.5.25
+
+- Fresh Windows rebuild of 0.5.24 following a reported Smart App Control block.
+
 # 0.5.24
 
 - Saved matches display each engine’s search limit and MultiPV, the estimated A-minus-B Elo difference, and the opening book for newly created matches. Earlier matches without a recorded book say so.
