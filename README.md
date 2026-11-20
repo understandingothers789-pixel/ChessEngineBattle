@@ -286,8 +286,9 @@ no Git worktree is required.
 1. Click **Open engine file for A…**, select your own UCI executable, click **Test engine**, then **Save engine**. Use the discovered option controls to set Threads, Hash and other supported settings. Expert arguments and raw configuration are available in the advanced editor.
    Validate only executables you trust: validation launches the selected file.
 2. Add another profile of the same executable or another engine. Select A and B.
-3. Choose **nodes**, **depth**, or **movetime**. Movetime values are seconds;
-   node/depth values are integers. No limit types are silently combined.
+3. Choose **nodes**, **depth**, **movetime**, or **clock** for each engine.
+   Engine B can also use **Same as A**. Movetime values are seconds and
+   node/depth values are integers.
 4. Choose a PGN/EPD opening suite, or leave blank for the starting position.
    Every opening pair uses the identical starting FEN with colors reversed.
    Set pair count (100 means 200 games), each engine’s playing MultiPV, and the
@@ -297,13 +298,20 @@ no Git worktree is required.
    their interrupted status. Do not run multiple copies on the same database.
 
 To compare Stockfish at depth 12 and depth 10, select the same Stockfish
-profile for A and B. In **Engines & Search Limits**, choose **depth**, enter
+profile for A and B. In **Engines & Search Limits**, choose **depth** for A and **Same as A** for B, enter
 **12** for A and **10** for B, and set the separate **playing MultiPV** controls
 to **1 / 1**. For the second match, change B’s MultiPV to **2**. Save each setup
 as a named preset if you plan to repeat it. For a node-based comparison, select
-**nodes** and enter the two node budgets. Depth and nodes use no chess clock.
+**nodes** for A and **Same as A** for B, then enter the two node budgets. Depth and nodes use no chess clock.
 To allow an engine to go indefinitely without reporting search progress, set
 **Search silence timeout** to **0** in advanced match settings.
+
+To compare regular Stockfish time management against a fixed search, set
+**Engine A search mode** to **clock**, open **Clock controls**, and enter A’s
+base time and increment. Set **Engine B search mode** to **depth** or **nodes**
+and enter B’s budget. Set both MultiPV controls to **1** for standard play.
+Only the timed engine spends clock time and can lose on time. Its clock stays
+with the engine when colors swap.
 
 New matches default to playing MultiPV 3 per engine (saved settings are retained).
 Playing MultiPV >1 can affect strength. Supplementary analysis is a separate job

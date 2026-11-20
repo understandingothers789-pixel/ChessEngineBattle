@@ -256,7 +256,7 @@ class Tournament(QObject):
             self.game.play(self.game.board.parse_uci(uci))
         self.clock=None
         limits=[Limit(**limit) for limit in self.state['limits']]
-        if all(limit.mode == 'clock' for limit in limits):
+        if any(limit.mode == 'clock' for limit in limits):
             self.clock=MatchClock.restore(item['clock']) if item.get('clock') else MatchClock.create(limits,item['a_white'])
         if item['result'] != '*':self.game.declared=Outcome(item['result'],item.get('termination','Stored result'))
 
@@ -266,7 +266,6 @@ class Tournament(QObject):
         for limit in limits:limit.validate()
         if any(type(pv) is not int or not 1 <= pv <= 5 for pv in (multipv, multipv if multipv_b is None else multipv_b)):
             raise ValueError('Playing MultiPV must be 1–5 for each engine.')
-        if any(limit.mode == 'clock' for limit in limits) and not all(limit.mode == 'clock' for limit in limits):raise ValueError('Both engines must use clock mode together')
         self.state = dict(id=str(uuid4()), profiles=[asdict(p) for p in profiles],
                           limits=[asdict(l) for l in limits], games=games, index=0,
                           multipv=multipv, checkpoint=checkpoint, maximum=maximum, seed=seed,
@@ -297,7 +296,7 @@ class Tournament(QObject):
 
     def start_clock(self,context):
         if not self.active or not self.clock:return
-        if context['game'] != self.game.id:return
+        if context['game'] != self.game.id or context['limit']['mode'] != 'clock':return
         self.clock.start(self.game.board.turn,now=context['started_ns'])
         self.clock_timer.start()
         self.save()
@@ -343,16 +342,18 @@ class Tournament(QObject):
             self.save()
             QTimer.singleShot(0, self.next)
             return
-        if self.clock and self.clock.left(self.game.board.turn)==0:
+        if self.clock and self.game.board.turn in self.clock.remaining and self.clock.left(self.game.board.turn)==0:
             self.forfeit(self.game.board.turn);return
         a_turn = (self.game.board.turn == 1) == item['a_white']
         side = 0 if a_turn else 1
         try:
+            limit = Limit(**self.state['limits'][side])
+            timed = limit.mode == 'clock'
             self.search.start(self.game, Profile(**self.state['profiles'][side]),
-                              Limit(**self.state['limits'][side]), playing_multipv(self.state, side),
+                              limit, playing_multipv(self.state, side),
                               start=self.state['checkpoint'], maximum=self.state['maximum'],
-                              tournament=self.state['id'],silence_timeout_ms=0 if self.clock else self.state.get('silence_timeout_ms',120000),
-                              clock_command=self.clock.uci() if self.clock else None,
+                              tournament=self.state['id'],silence_timeout_ms=0 if timed else self.state.get('silence_timeout_ms',120000),
+                              clock_command=self.clock.uci() if timed else None,
                               save_best_changes=self.state.get('save_best_changes',True))
         except (ValueError, OSError) as exc:
             self.error(str(exc))
@@ -368,7 +369,7 @@ class Tournament(QObject):
             if context['game'] != self.game.id or context['position'] != position_identity(self.game):
                 raise ValueError('Search result belongs to a different game or position')
             timing={}
-            if self.clock:
+            if self.clock and self.clock.active is not None:
                 before=self.clock.payload()
                 flag,elapsed=self.clock.stop(now=data['received_ns'],add_increment=True,buffer_ns=int(self.state.get('clock_buffer_seconds',0)*1_000_000_000))
                 self.clock_timer.stop()

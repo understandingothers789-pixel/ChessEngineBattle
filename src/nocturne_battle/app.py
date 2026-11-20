@@ -56,7 +56,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.21 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.22 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -78,7 +78,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.21'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.22'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -389,7 +389,10 @@ class Window(QMainWindow):
         self.mode.addItems(['nodes', 'depth', 'movetime', 'clock'])
         self.mode.setItemData(3,'Base time plus an increment added after each accepted move.',Qt.ItemDataRole.ToolTipRole)
         self.budgets = [QLineEdit('100000000'), QLineEdit('1000000000')]
-        form.addRow('Search mode', self.mode)
+        self.mode_b = QComboBox()
+        self.mode_b.addItems(['Same as A', 'nodes', 'depth', 'movetime', 'clock'])
+        form.addRow('Engine A search mode', self.mode)
+        form.addRow('Engine B search mode', self.mode_b)
         form.addRow('Engine A search budget', self.budgets[0])
         form.addRow('Engine B search budget', self.budgets[1])
         self.play_pv = QSpinBox()
@@ -407,7 +410,7 @@ class Window(QMainWindow):
         self.clock_buffer=QDoubleSpinBox(); self.clock_buffer.setRange(0,10); self.clock_buffer.setDecimals(2); self.clock_buffer.setValue(0.2); self.clock_buffer.setSuffix(' sec')
         self.clock_buffer.setToolTip('Grace allowance deducted from measured move time to absorb small engine and communication delays. Default: 0.20 seconds per move.')
         clock_form.addRow('Move buffer', self.clock_buffer)
-        clock_form.addRow('Same preset for both',preset)
+        clock_form.addRow('Clock preset',preset)
         for side in range(2):
             base=MinutesSeconds()
             inc=QDoubleSpinBox();inc.setRange(0,3600);inc.setDecimals(3);inc.setValue(0.1);inc.setSuffix(' sec')
@@ -418,7 +421,10 @@ class Window(QMainWindow):
         def apply_clock_preset(index):
             data=preset.itemData(index)
             if data:
-                for base,inc in zip(self.clock_bases,self.clock_increments):base.setValue(data[0]);inc.setValue(data[1])
+                for side, mode in enumerate(self.search_modes()):
+                    if mode == "clock":
+                        self.clock_bases[side].setValue(data[0])
+                        self.clock_increments[side].setValue(data[1])
         preset.currentIndexChanged.connect(apply_clock_preset)
         self.clock_dialog=QDialog(self);self.clock_dialog.setWindowTitle('Clock controls — minutes, seconds and increment')
         clock_layout=QVBoxLayout(self.clock_dialog);clock_layout.addWidget(self.clock_group)
@@ -427,6 +433,7 @@ class Window(QMainWindow):
         form.addRow(self.clock_button)
         self.clock_button.hide()
         self.mode.currentTextChanged.connect(self.search_mode_changed)
+        self.mode_b.currentTextChanged.connect(self.search_mode_changed)
 
         self.ratio_button=button('Apply B:A node ratio', self.apply_ratio, config)
         self.swap_budget_button=button('Exchange A / B budgets', self.swap_budgets, config)
@@ -542,6 +549,7 @@ class Window(QMainWindow):
         self.workspace.currentIndexChanged.connect(self.change_workspace)
         self.populate_profiles()
         self.restore_settings()
+        self.search_mode_changed(None)
         self.workspace.setCurrentIndex(1)
         self.change_workspace(1)
         self.board.wheel_navigated.connect(lambda delta: self.navigate(self.view_game.cursor+delta))
@@ -870,13 +878,21 @@ class Window(QMainWindow):
     def update_pair_description(self):
         self.pair_description.setText(f'{self.pairs.value()} opening pairs = {self.pairs.value()*2} games. Each selected opening gets two games with colors swapped. Extra pairs repeat the suite.')
 
-    def search_mode_changed(self,mode):
-        self.clock_button.setVisible(mode == 'clock')
-        for field in self.budgets:
-            field.setEnabled(mode != 'clock');field.setVisible(mode != 'clock')
+    def search_modes(self):
+        a, b = self.mode.currentText(), self.mode_b.currentText()
+        return a, a if b == 'Same as A' else b
+
+    def search_mode_changed(self, _mode):
+        modes = self.search_modes()
+        self.clock_button.setVisible('clock' in modes)
+        for side, (field, mode) in enumerate(zip(self.budgets, modes)):
+            field.setEnabled(mode != 'clock')
+            field.setVisible(mode != 'clock')
             self.limit_form.labelForField(field).setVisible(mode != 'clock')
-        self.ratio_button.setVisible(mode=='nodes')
-        self.swap_budget_button.setVisible(mode!='clock')
+            self.clock_bases[side].setEnabled(mode == 'clock')
+            self.clock_increments[side].setEnabled(mode == 'clock')
+        self.ratio_button.setVisible(modes == ('nodes', 'nodes'))
+        self.swap_budget_button.setVisible(modes[0] == modes[1] and modes[0] != 'clock')
 
     def update_clocks(self):
         state=self.tournament.state
@@ -910,6 +926,8 @@ class Window(QMainWindow):
         clock=self.tournament.clock
         if not clock:self.clock_label.clear();self.scoreboard.set_clocks('','');return
         def label(color):
+            if color not in clock.remaining:
+                return "—"
             milliseconds=clock.left(color)//1_000_000
             return f'{milliseconds//60000:02d}:{milliseconds//1000%60:02d}.{milliseconds%1000//100}'
         item=self.tournament.state['games'][self.tournament.state['index']]
@@ -919,10 +937,14 @@ class Window(QMainWindow):
         self.clock_label.setText(f'Live clocks · White {label(1)}   |   Black {label(-1)}')
 
     def limits(self):
-        mode = self.mode.currentText()
-        if mode == 'clock':
-            return [Limit('clock',round(base.value()*60000),round(inc.value()*1000)) for base,inc in zip(self.clock_bases,self.clock_increments)]
-        result = [Limit(mode, parse_budget(c.text()) if mode != 'movetime' else float(c.text())) for c in self.budgets]
+        result = []
+        for side, mode in enumerate(self.search_modes()):
+            if mode == 'clock':
+                result.append(Limit(mode, round(self.clock_bases[side].value() * 60000),
+                                    round(self.clock_increments[side].value() * 1000)))
+            else:
+                budget = self.budgets[side].text()
+                result.append(Limit(mode, float(budget) if mode == 'movetime' else parse_budget(budget)))
         for limit in result:
             limit.validate()
         return result
@@ -936,7 +958,7 @@ class Window(QMainWindow):
 
     def apply_ratio(self):
         try:
-            if self.mode.currentText() != 'nodes':
+            if self.search_modes() != ('nodes', 'nodes'):
                 raise ValueError('Node ratios require fixed nodes mode')
             from decimal import Decimal
             value = Decimal(parse_budget(self.budgets[0].text())) * Decimal(self.ratio.currentText())
@@ -980,7 +1002,7 @@ class Window(QMainWindow):
             for profile in profiles:
                 path=next((v for k,v in profile.options.items() if k.lower()=='syzygypath' and v),'not configured')
                 description+=f'\n{profile.name} · tablebases: {path}'
-            if self.mode.currentText() == 'clock': description += f'\nMove buffer: {self.clock_buffer.value():.2f} seconds'
+            if any(limit.mode == 'clock' for limit in limits): description += f'\nMove buffer: {self.clock_buffer.value():.2f} seconds'
             description += (f'\nAutomatic draw: from move {self.draw_start.value()}, both within ±0.30 for 10 consecutive plies' if self.auto_draw.isChecked() else '\nAutomatic evaluation draw: off')
             if sprt_config:description += f"\nSPRT monitor: H0 {sprt_config['h0']:+g}, H1 {sprt_config['h1']:+g} nElo; alpha {sprt_config['alpha']:.1%}, beta {sprt_config['beta']:.1%}. Schedule continues after decision."
             self.summary.setText(description)
@@ -1295,7 +1317,7 @@ class Window(QMainWindow):
         context = self.tournament.search.context
         if context and self.live_search_ids[side] != context['id']:self.live_started(context)
         name = self.tournament.state['profiles'][side]['name']
-        remaining = self.tournament.clock.left(game.board.turn)/1e9 if self.tournament.clock else None
+        remaining = self.tournament.clock.left(game.board.turn)/1e9 if self.tournament.clock and game.board.turn in self.tournament.clock.remaining else None
         clock_text = f' · clock {remaining:.1f}s' if remaining is not None else ''
         tb = f"TB hits {info['tbhits']:,}" if isinstance(info.get('tbhits'), int) else 'TB hits not reported'
         self.live_labels[side].setText(f"ENGINE {'AB'[side]} · {'White' if game.board.turn == 1 else 'Black'} · move {game.board.native.fullmove_number} · depth {info.get('depth',0)} · {info.get('nodes',0):,} nodes · {tb}{clock_text}")
@@ -1642,7 +1664,7 @@ class Window(QMainWindow):
             self.error(str(exc))
 
     def save_settings(self):
-        self.db.put('workspace', dict(sprt_enabled=self.sprt_enabled.isChecked(),sprt_h0=self.sprt_h0.value(),sprt_h1=self.sprt_h1.value(),sprt_alpha=self.sprt_alpha.value(),sprt_beta=self.sprt_beta.value(),clock_bases=[c.value() for c in self.clock_bases],clock_increments=[c.value() for c in self.clock_increments], clock_buffer=self.clock_buffer.value(),silence_timeout=self.silence_timeout.value(), geometry=bytes(self.saveGeometry().toHex()).decode(), workspace=self.workspace.currentIndex(), splitter=self.splitter.sizes(), board_splitter=self.board_splitter.sizes(), table_widths=[self.games_table.columnWidth(i) for i in range(8)], mode=self.mode.currentText(),
+        self.db.put('workspace', dict(sprt_enabled=self.sprt_enabled.isChecked(),sprt_h0=self.sprt_h0.value(),sprt_h1=self.sprt_h1.value(),sprt_alpha=self.sprt_alpha.value(),sprt_beta=self.sprt_beta.value(),clock_bases=[c.value() for c in self.clock_bases],clock_increments=[c.value() for c in self.clock_increments], clock_buffer=self.clock_buffer.value(),silence_timeout=self.silence_timeout.value(), geometry=bytes(self.saveGeometry().toHex()).decode(), workspace=self.workspace.currentIndex(), splitter=self.splitter.sizes(), board_splitter=self.board_splitter.sizes(), table_widths=[self.games_table.columnWidth(i) for i in range(8)], mode=self.mode.currentText(), mode_b=self.mode_b.currentText(),
             budgets=[x.text() for x in self.budgets], engines=[x.currentIndex() for x in self.engines],
             keep_best_changes=self.keep_best_changes.isChecked(), ui_layout=2, full_variations=self.full_variations.isChecked(), book=self.book.text(), pairs=self.pairs.value(), play_pv=self.play_pv.value(), play_pv_b=self.play_pv_b.value(), auto_draw=self.auto_draw.isChecked(), draw_start=self.draw_start.value(),
             checkpoint=self.checkpoint.text(), maximum=self.maximum.text(), seed=self.seed.value(),
@@ -1662,6 +1684,7 @@ class Window(QMainWindow):
         self.board_splitter.setSizes(state.get('board_splitter',[600,230]))
         self.games_table._restore_widths=state.get('table_widths')
         self.mode.setCurrentText(state['mode'])
+        self.mode_b.setCurrentText(state.get('mode_b', 'Same as A'))
         for control,value in zip(self.clock_bases,state.get('clock_bases',[10/60,10/60])):control.setValue(value)
         for control,value in zip(self.clock_increments,state.get('clock_increments',[0.1,0.1])):control.setValue(value)
         for control, value in zip(self.budgets, state['budgets']):

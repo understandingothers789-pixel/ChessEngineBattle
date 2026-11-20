@@ -100,7 +100,12 @@ def test_gui_clock_fields_and_opening_pair_explanation(qtbot,db,profile):
     assert not w.budgets[0].isEnabled()
     w.pairs.setValue(12)
     assert '24 games' in w.pair_description.text()
+    w.mode_b.setCurrentText('depth')
+    w.budgets[1].setText('10')
+    assert w.limits() == [Limit('clock', 60000, 500), Limit('depth', 10)]
+    assert w.budgets[1].isEnabled()
     w.save_settings()
+    assert db.get('workspace')['mode_b'] == 'depth'
     assert db.get('workspace')['clock_bases'][0]==1
     w.close()
 
@@ -140,3 +145,36 @@ def test_whole_suite_button_sets_two_games_per_book_entry(qtbot,db,profile,tmp_p
     assert w.pairs.value()==2
     assert '4 games' in w.pair_description.text()
     w.close()
+
+
+@pytest.mark.parametrize('clock_side', [0, 1])
+@pytest.mark.parametrize('fixed_mode,budget', [('depth', 10), ('nodes', 10000)])
+def test_mixed_clock_follows_engine_after_colors_swap(qtbot, db, profile, clock_side, fixed_mode, budget):
+    limits = [Limit(fixed_mode, budget)] * 2
+    limits[clock_side] = Limit('clock', 10000, 50)
+    t = Tournament(db)
+    try:
+        t.create([profile] * 2, limits, schedule(openings(None), 1))
+        t.state['max_plies'] = 2
+        t.resume()
+        qtbot.waitUntil(lambda: t.state['index'] == 2, timeout=15000)
+        for game in t.state['games']:
+            timed_white = (clock_side == 0) == game['a_white']
+            timed, fixed = ('1', '2') if timed_white else ('2', '1')
+            timed_link = game['move_searches'][timed]
+            fixed_link = game['move_searches'][fixed]
+            color = 1 if timed_white else -1
+            assert set(timed_link['clock_after']['remaining_ns']) == {color}
+            clock_run = db.search_run(timed_link['search_run_id'])
+            expected = ('go wtime 10000 btime 0 winc 50 binc 0' if timed_white else
+                        'go wtime 0 btime 10000 winc 0 binc 50')
+            assert clock_run['clock_go'] == expected
+            assert 'clock_after' not in fixed_link
+            fixed_run = db.search_run(fixed_link['search_run_id'])
+            assert 'clock_go' not in fixed_run
+            assert fixed_run['limit']['mode'] == fixed_mode
+        commands = [line for line in t.search.engine.connection.log if line.startswith('> go')]
+        assert commands.count(f'> go {fixed_mode} {budget}') == 2
+    finally:
+        t.pause()
+        t.search.close()

@@ -29,7 +29,7 @@ def capture_conditions(window):
     return dict(values={name:getattr(window,name).value() for name in VALUE_FIELDS},
                 texts={name:getattr(window,name).text() for name in TEXT_FIELDS},
                 checks={name:getattr(window,name).isChecked() for name in CHECK_FIELDS},
-                mode=window.mode.currentText(),budgets=[v.text() for v in window.budgets],
+                mode=window.mode.currentText(),mode_b=window.mode_b.currentText(),budgets=[v.text() for v in window.budgets],
                 bases=[v.value() for v in window.clock_bases],increments=[v.value() for v in window.clock_increments])
 
 
@@ -42,6 +42,7 @@ def apply_conditions(window,data):
     for name in CHECK_FIELDS:
         if name in data['checks']:getattr(window,name).setChecked(data['checks'][name])
     window.mode.setCurrentText(data['mode'])
+    window.mode_b.setCurrentText(data.get('mode_b', 'Same as A'))
     for controls,key,method in [(window.budgets,'budgets','setText'),(window.clock_bases,'bases','setValue'),(window.clock_increments,'increments','setValue')]:
         for control,value in zip(controls,data[key]):getattr(control,method)(value)
 

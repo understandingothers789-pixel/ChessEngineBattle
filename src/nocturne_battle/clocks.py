@@ -13,9 +13,10 @@ class MatchClock:
 
     @classmethod
     def create(cls, limits, a_white):
-        white = 0 if a_white else 1
-        return cls({1:limits[white].value*1_000_000,-1:limits[1-white].value*1_000_000},
-                   {1:limits[white].increment_ms*1_000_000,-1:limits[1-white].increment_ms*1_000_000})
+        colors = (1, -1) if a_white else (-1, 1)
+        timed = {color: limit for color, limit in zip(colors, limits) if limit.mode == 'clock'}
+        return cls({color: limit.value * 1_000_000 for color, limit in timed.items()},
+                   {color: limit.increment_ms * 1_000_000 for color, limit in timed.items()})
 
     @classmethod
     def restore(cls, payload, wall_now=None):
@@ -54,9 +55,14 @@ class MatchClock:
         return color if flagged else None,elapsed
 
     def uci(self):
+        # Stockfish accepts both color fields. Zero represents the absent
+        # opponent clock; only the searching side's clock is enforced.
+        def milliseconds(color):
+            return max(1, self.left(color) // 1_000_000) if color in self.remaining else 0
+
         return 'go '+ ' '.join(f'{name} {value}' for name,value in (
-            ('wtime',max(1,self.left(1)//1_000_000)),('btime',max(1,self.left(-1)//1_000_000)),
-            ('winc',self.increments[1]//1_000_000),('binc',self.increments[-1]//1_000_000)))
+            ('wtime',milliseconds(1)),('btime',milliseconds(-1)),
+            ('winc',self.increments.get(1, 0)//1_000_000),('binc',self.increments.get(-1, 0)//1_000_000)))
 
     def payload(self):
         return dict(remaining_ns=dict(self.remaining),increment_ns=dict(self.increments),
