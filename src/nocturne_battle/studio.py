@@ -20,13 +20,17 @@ class EngineScoreboard(QWidget):
     def __init__(self,controls):
         super().__init__();layout=QVBoxLayout(self);layout.setContentsMargins(0,0,0,0);layout.setSpacing(5)
         row=QHBoxLayout();row.setSpacing(12);layout.addLayout(row)
-        self.names=[];self.points=[];self.details=[];self.clocks=[];self.cards=[]
+        self.names=[];self.points=[];self.details=[];self.clocks=[];self.cards=[];self.limits=[]
         for side,control in enumerate(controls):
             card=QFrame();card.setObjectName('engineCard');card.setProperty('side','AB'[side]);box=QVBoxLayout(card);box.setContentsMargins(12,8,12,8);box.setSpacing(3)
             top=QHBoxLayout();top.addWidget(label('ENGINE '+'AB'[side],'eyebrow'));top.addStretch()
             control.setText('Load engine');control.setObjectName('engineLoad');top.addWidget(control);box.addLayout(top)
             name=EngineName('Choose a UCI engine');name.setObjectName('engineName');name.setMinimumWidth(0);name.setSizePolicy(QSizePolicy.Policy.Ignored,QSizePolicy.Policy.Preferred)
             middle=QHBoxLayout();points=label('0','scoreValue');clock=label('','engineClock');middle.addWidget(name,1);middle.addWidget(points);box.addLayout(middle)
+            limit = label('', 'cardDetail')
+            limit.setWordWrap(True)
+            box.addWidget(limit)
+            self.limits.append(limit)
             detail=label('Ready to configure','cardDetail');bottom=QHBoxLayout();bottom.addWidget(detail,1);bottom.addWidget(clock);box.addLayout(bottom)
             row.addWidget(card,1);self.names.append(name);self.points.append(points);self.details.append(detail);self.clocks.append(clock);self.cards.append(card)
         self.progress=QProgressBar();self.progress.setObjectName('matchProgress');self.progress.setRange(0,100);self.progress.setValue(0);self.progress.setTextVisible(False);self.progress.setFixedHeight(5);layout.addWidget(self.progress)
@@ -37,6 +41,22 @@ class EngineScoreboard(QWidget):
     def update_match(self,state,summary):
         self.configure_names(state['profiles'])
         for side in range(2):
+            limit = state['limits'][side]
+            mode = limit['mode']
+            value = limit['value']
+            if mode == 'depth':
+                description = f'Depth {value:,}'
+            elif mode == 'nodes':
+                description = f'{value:,} nodes'
+            elif mode == 'movetime':
+                description = f'{value:g} seconds per move'
+            elif mode == 'clock':
+                description = f"Clock {value / 60000:g} min + {limit.get('increment_ms', 0) / 1000:g} sec"
+            else:
+                description = mode
+            pv = state.get('multipv_by_side', [state.get('multipv', 1)] * 2)[side]
+            self.limits[side].setText(f'{description} · MultiPV {pv}')
+            self.limits[side].setToolTip('Match settings for this engine. Values remain with the engine when colors swap.')
             wins=summary['wins'] if side==0 else summary['losses'];losses=summary['losses'] if side==0 else summary['wins'];draws=summary['draws']
             self.points[side].setText(f'{wins+draws/2:g}')
             self.details[side].setText(f'{wins} wins   ·   {losses} losses   ·   {draws} draws')

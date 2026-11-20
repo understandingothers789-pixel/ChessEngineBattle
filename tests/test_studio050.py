@@ -31,3 +31,22 @@ def test_studio_onboarding_navigation_and_scorecards(qtbot,db,profile,qapp):
         assert w.width()==1920 and w.height()==1080
     finally:
         w.close();qapp.setStyleSheet(original)
+
+
+def test_scoreboard_shows_engine_limits_and_legacy_multipv(qtbot):
+    from PySide6.QtWidgets import QPushButton
+    from nocturne_battle.studio import EngineScoreboard
+    board = EngineScoreboard([QPushButton(), QPushButton()])
+    qtbot.addWidget(board)
+    state = {'profiles': [{'name': 'A'}, {'name': 'B'}], 'limits': [
+        {'mode': 'depth', 'value': 12}, {'mode': 'nodes', 'value': 1000000}],
+        'multipv_by_side': [1, 2], 'games': []}
+    summary = {'wins': 0, 'losses': 0, 'draws': 0}
+    board.update_match(state, summary)
+    assert board.limits[0].text() == 'Depth 12 · MultiPV 1'
+    assert board.limits[1].text() == '1,000,000 nodes · MultiPV 2'
+    state.pop('multipv_by_side')
+    state['multipv'] = 3
+    state['limits'][0] = {'mode': 'clock', 'value': 60000, 'increment_ms': 500}
+    board.update_match(state, summary)
+    assert board.limits[0].text() == 'Clock 1 min + 0.5 sec · MultiPV 3'

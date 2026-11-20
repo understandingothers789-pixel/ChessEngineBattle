@@ -1,5 +1,6 @@
 # 0.5.23
 
+- Engine cards show each side’s configured depth, node limit, clock or movetime and MultiPV.
 - Clock is the default search mode for new setups. Search mode and budget tooltips explain clock, depth, nodes and movetime for each engine.
 
 # 0.5.22
