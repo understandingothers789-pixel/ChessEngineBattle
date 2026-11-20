@@ -56,7 +56,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.22 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.23 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -78,7 +78,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.22'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.23'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -888,7 +888,16 @@ class Window(QMainWindow):
         for side, (field, mode) in enumerate(zip(self.budgets, modes)):
             field.setEnabled(mode != 'clock')
             field.setVisible(mode != 'clock')
-            self.limit_form.labelForField(field).setVisible(mode != 'clock')
+            label = self.limit_form.labelForField(field)
+            label.setVisible(mode != 'clock')
+            guidance = {
+                'depth': 'Enter the search depth in plies. For depth 12, enter 12.',
+                'nodes': 'Enter the maximum nodes per move. You can use K, M or B, such as 1M.',
+                'movetime': 'Enter the time per move in seconds, such as 0.5 or 10.',
+                'clock': 'Set the base time and increment in Clock controls.',
+            }[mode]
+            field.setToolTip(guidance)
+            label.setToolTip(guidance)
             self.clock_bases[side].setEnabled(mode == 'clock')
             self.clock_increments[side].setEnabled(mode == 'clock')
         self.ratio_button.setVisible(modes == ('nodes', 'nodes'))

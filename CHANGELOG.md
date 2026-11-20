@@ -1,3 +1,7 @@
+# 0.5.23
+
+- Search budget tooltips explain depth, nodes and movetime for each engine.
+
 # 0.5.22
 
 - Choose search modes independently. A clock-controlled engine can play an opponent using fixed depth or nodes. Only the timed side can lose on time, and its clock follows it when colors swap.

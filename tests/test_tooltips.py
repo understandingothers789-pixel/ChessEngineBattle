@@ -18,3 +18,19 @@ def test_discovered_engine_options_have_help(qtbot,profile):
     qtbot.waitUntil(lambda:dialog.discovered is not None,timeout=10000)
     assert all(w.toolTip() for w in dialog.option_widgets.values())
     dialog.close()
+
+
+def test_search_budget_tooltips_follow_each_engine_mode(qtbot, db):
+    window = Window(db)
+    qtbot.addWidget(window)
+    window.mode.setCurrentText('movetime')
+    window.mode_b.setCurrentText('depth')
+    assert 'seconds' in window.budgets[0].toolTip()
+    assert 'depth 12' in window.budgets[1].toolTip()
+    assert 'enter 12' in window.limit_form.labelForField(window.budgets[1]).toolTip()
+    window.mode_b.setCurrentText('Same as A')
+    assert 'seconds' in window.budgets[1].toolTip()
+    window.mode.setCurrentText('nodes')
+    assert 'nodes' in window.budgets[0].toolTip()
+    assert 'nodes' in window.budgets[1].toolTip()
+    window.close()
