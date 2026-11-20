@@ -5,6 +5,8 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+- [Download Chess Engine Battle 0.5.23 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/44789005512/artifacts/14655687465) — clock is the default for new setups, search controls have mode-specific tooltips, and engine cards show each side’s search limit and MultiPV. Windows tests and packaged startup passed. Extract the full ZIP. GitHub sign-in required.
+
 - [Download Chess Engine Battle 0.5.22 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/44785464862/artifacts/14654036975) — choose search modes independently, including clock versus fixed depth or nodes. Windows tests and packaged startup passed. Extract the full ZIP. GitHub sign-in required.
 
 - [Download Chess Engine Battle 0.5.21 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/44784388960/artifacts/14654080805) — separate playing MultiPV controls for both engines, including when they use the same Stockfish profile. Windows tests and packaged startup passed. Extract the full ZIP. GitHub sign-in required.
