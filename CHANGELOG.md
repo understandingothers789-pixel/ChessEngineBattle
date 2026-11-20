@@ -1,6 +1,6 @@
 # 0.5.23
 
-- Search budget tooltips explain depth, nodes and movetime for each engine.
+- Clock is the default search mode for new setups. Search mode and budget tooltips explain clock, depth, nodes and movetime for each engine.
 
 # 0.5.22
 

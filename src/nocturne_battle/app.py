@@ -387,10 +387,13 @@ class Window(QMainWindow):
 
         self.mode = QComboBox()
         self.mode.addItems(['nodes', 'depth', 'movetime', 'clock'])
+        self.mode.setCurrentText('clock')
+        self.mode.setToolTip('Choose how Engine A searches. Clock uses base time and increment; movetime gives a fixed number of seconds per move; depth and nodes use fixed search limits.')
         self.mode.setItemData(3,'Base time plus an increment added after each accepted move.',Qt.ItemDataRole.ToolTipRole)
         self.budgets = [QLineEdit('100000000'), QLineEdit('1000000000')]
         self.mode_b = QComboBox()
         self.mode_b.addItems(['Same as A', 'nodes', 'depth', 'movetime', 'clock'])
+        self.mode_b.setToolTip('Choose how Engine B searches. Same as A follows Engine A’s mode. Select clock, depth, nodes or movetime to use a different mode.')
         form.addRow('Engine A search mode', self.mode)
         form.addRow('Engine B search mode', self.mode_b)
         form.addRow('Engine A search budget', self.budgets[0])

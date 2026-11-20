@@ -23,6 +23,10 @@ def test_discovered_engine_options_have_help(qtbot,profile):
 def test_search_budget_tooltips_follow_each_engine_mode(qtbot, db):
     window = Window(db)
     qtbot.addWidget(window)
+    assert window.mode.currentText() == 'clock'
+    assert window.mode_b.currentText() == 'Same as A'
+    assert 'base time' in window.mode.toolTip()
+    assert 'Same as A' in window.mode_b.toolTip()
     window.mode.setCurrentText('movetime')
     window.mode_b.setCurrentText('depth')
     assert 'seconds' in window.budgets[0].toolTip()
