@@ -5,6 +5,8 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+- [Download Chess Engine Battle 0.5.29 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/releases/download/v0.5.29/ChessEngineBattle-0.5.29-Windows.zip) — new two-rook emblem for the executable, taskbar and window. Windows tests, executable icon verification and startup from the extracted ZIP passed. This public release is unsigned. [SHA-256 checksum](https://github.com/understandingothers789-pixel/ChessEngineBattle/releases/download/v0.5.29/ChessEngineBattle-0.5.29-Windows.zip.sha256).
+
 - [Download Chess Engine Battle 0.5.28 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/releases/download/v0.5.28/ChessEngineBattle-0.5.28-Windows.zip) — reuse saved setups and queue mixed-limit matches on the same openings. GitHub sign-in is optional for this public release. Windows tests and startup from the extracted ZIP passed. Authenticode status is unsigned. [SHA-256 checksum](https://github.com/understandingothers789-pixel/ChessEngineBattle/releases/download/v0.5.28/ChessEngineBattle-0.5.28-Windows.zip.sha256) · [Windows release and signing guide](docs/WINDOWS_RELEASES.md).
 
 - [Download Chess Engine Battle 0.5.27 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/45591318555/artifacts/15010702340) — load engines and set a clock on one side and fixed nodes or depth on the other, all in Match Setup. Includes a 20 sec + 0.2 sec preset. Windows tests and packaged startup passed. Extract the full ZIP. GitHub sign-in required.
