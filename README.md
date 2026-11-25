@@ -5,6 +5,8 @@ Nocturne Chess implementation. No chess engines or NNUE networks are bundled.
 
 ## Build downloads
 
+- [Download Chess Engine Battle 0.5.27 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/45591318555/artifacts/15010702340) — load engines and set a clock on one side and fixed nodes or depth on the other, all in Match Setup. Includes a 20 sec + 0.2 sec preset. Windows tests and packaged startup passed. Extract the full ZIP. GitHub sign-in required.
+
 - [Download Chess Engine Battle 0.5.26 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/45588823619/artifacts/15010236928) — pinned match setup actions, corrected workspace navigation, searchable saved matches and clearer move review. Windows tests and packaged startup passed. Extract the full ZIP. GitHub sign-in required. [Full UI review](docs/UI_REVIEW_0.5.26.md).
 
 - [Download Chess Engine Battle 0.5.25 for Windows](https://github.com/understandingothers789-pixel/ChessEngineBattle/actions/runs/44796093555/artifacts/14657184243) — fresh rebuild of 0.5.24 after a reported Smart App Control block. Windows tests and packaged startup passed. Smart App Control acceptance on your PC remains unverified. Extract the full ZIP. GitHub sign-in required.
