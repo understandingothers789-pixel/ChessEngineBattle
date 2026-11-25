@@ -7,7 +7,7 @@ import sqlite3
 from pathlib import Path
 import sys
 
-from PySide6.QtCore import Qt, QStandardPaths, Signal, QTimer, QPoint
+from PySide6.QtCore import Qt, QStandardPaths, Signal, QTimer, QPoint, QSize
 from PySide6.QtGui import QColor, QPainter, QPen, QIcon, QKeySequence, QShortcut, QCursor
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QFormLayout, QInputDialog, QLabel, QPushButton, QComboBox, QLineEdit, QSpinBox, QDoubleSpinBox, QCheckBox,
@@ -58,7 +58,7 @@ class Window(QMainWindow):
         self.saved_opening_inputs = None
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.28 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.29 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -80,7 +80,16 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.28'));outer.addLayout(brand)
+        brand = QHBoxLayout()
+        emblem = QLabel()
+        emblem.setPixmap(QIcon(str(Path(__file__).parent / 'assets' / 'app.png')).pixmap(
+            QSize(28, 28), self.devicePixelRatioF()
+        ))
+        brand.addWidget(emblem)
+        brand.addWidget(title)
+        brand.addStretch()
+        brand.addWidget(QLabel('0.5.29'))
+        outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -2088,7 +2097,7 @@ def main():
             window.close()
             return 1
         def smoke():
-            success = not window.grab().isNull() and window.board.isVisible()
+            success = not window.grab().isNull() and window.board.isVisible() and not window.windowIcon().isNull()
             window.close()
             app.exit(0 if success else 1)
         QTimer.singleShot(250, smoke)

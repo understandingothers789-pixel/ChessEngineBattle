@@ -1,3 +1,7 @@
+# 0.5.29
+
+- Give Chess Engine Battle a distinct two-rook icon on the Windows executable, taskbar, and window. Show the emblem beside the app title.
+
 # 0.5.28
 
 - Use a saved match as a new setup with its recorded opening order, rules, limits, and MultiPV. Verify matching local engine profiles before selecting them.

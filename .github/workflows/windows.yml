@@ -17,6 +17,8 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
       - run: pyinstaller --clean --noconfirm ChessEngineBattle.spec
+      - name: Verify the Windows executable icon
+        run: python scripts/check_windows_icon.py src/nocturne_battle/assets/app.ico dist/ChessEngineBattle/ChessEngineBattle.exe
       - name: Verify NumPy and SciPy are absent from the package
         shell: pwsh
         run: |
@@ -37,7 +39,7 @@ jobs:
           Get-FileHash dist/ChessEngineBattle/ChessEngineBattle.exe -Algorithm SHA256 | Format-List | Out-File -Append dist/ChessEngineBattle/BUILD-INFO.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: ChessEngineBattle-0.5.28-Windows
+          name: ChessEngineBattle-0.5.29-Windows
           path: dist/ChessEngineBattle/
   publish:
     name: Publish validated Windows ZIP
