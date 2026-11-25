@@ -1,9 +1,9 @@
 """Node-scaling builder and exploratory results, separate from match configuration."""
 import json
 import math
-from PySide6.QtCore import Signal
+
 from PySide6.QtGui import QColor,QPainter,QPen
-from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QLabel,QLineEdit,QPushButton,QTableWidget,QTableWidgetItem,QFileDialog
+from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QLabel,QLineEdit,QPushButton,QTableWidget,QTableWidgetItem,QFileDialog,QAbstractItemView
 from .experiments import build_experiment
 from .model import parse_budget,openings
 from .statistics import analyze
@@ -36,28 +36,72 @@ class ScalingPanel(QWidget):
     def __init__(self, window, runner):
         super().__init__(); self.window=window; self.runner=runner
         layout=QVBoxLayout(self)
-        label=QLabel('Node Scaling Experiment · uses selected Engine A profile, opening suite, pairs, seed and Engine A playing MultiPV from Match Setup. Conditions run sequentially with identical paired openings.'); label.setWordWrap(True);layout.addWidget(label)
-        row=QHBoxLayout(); self.base=QLineEdit('1M');self.ratios=QLineEdit('2, 5, 10, 25, 50, 100')
-        row.addWidget(QLabel('Base nodes'));row.addWidget(self.base);row.addWidget(QLabel('Ratios'));row.addWidget(self.ratios);layout.addLayout(row)
-        for title,callback in [('Build experiment',self.build),('Start / resume experiment',self.resume),('Pause experiment',runner.pause),('Export full experiment JSON',self.export)]:
-            b=QPushButton(title);b.clicked.connect(callback);layout.addWidget(b)
+        title = QLabel('Node scaling experiment')
+        title.setObjectName('sectionTitle')
+        layout.addWidget(title)
+        label = QLabel('Uses Engine A and the opening suite, pairs, seed and MultiPV from Match Setup. Every ratio plays the same paired openings.')
+        label.setWordWrap(True)
+        label.setObjectName('muted')
+        layout.addWidget(label)
+        row = QHBoxLayout()
+        self.base = QLineEdit('1M')
+        self.ratios = QLineEdit('2, 5, 10, 25, 50, 100')
+        self.base.setToolTip('Engine A’s node limit per move. For example, 1M means 1,000,000 nodes.')
+        self.ratios.setToolTip('Comma-separated multipliers for Engine B’s node limit.')
+        row.addWidget(QLabel('Base nodes'))
+        row.addWidget(self.base)
+        row.addWidget(QLabel('Ratios'))
+        row.addWidget(self.ratios)
+        layout.addLayout(row)
+        actions = QHBoxLayout()
+        self.build_button = QPushButton('Build experiment')
+        self.run_button = QPushButton('Start / resume')
+        self.pause_button = QPushButton('Pause')
+        self.export_button = QPushButton('Export JSON…')
+        for control, callback in [
+            (self.build_button, self.build), (self.run_button, self.resume),
+            (self.pause_button, runner.pause), (self.export_button, self.export),
+        ]:
+            control.clicked.connect(callback)
+            actions.addWidget(control)
+        self.run_button.setObjectName('primaryAction')
+        layout.addLayout(actions)
         self.summary=QLabel('No experiment loaded.'); self.summary.setWordWrap(True);layout.addWidget(self.summary)
         self.graph=ScalingGraph();layout.addWidget(self.graph)
         self.table=QTableWidget(0,10);self.table.setHorizontalHeaderLabels(['Ratio','A nodes','B nodes','Games','A W/L/D','A score','B Elo','B Elo interval','Pairs / clusters','Status'])
-        self.table.cellClicked.connect(self.open_condition);layout.addWidget(self.table)
-        runner.changed.connect(self.refresh);self.refresh()
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.cellActivated.connect(self.open_condition)
+        self.table.setToolTip('Double-click a condition or press Enter to review its games.')
+        layout.addWidget(self.table)
+        runner.changed.connect(self.refresh)
+        window.tournament.changed.connect(self.update_actions)
+        self.refresh()
     def build(self):
         try:
             w=self.window
             state=build_experiment(w.selected_profiles()[0],parse_budget(self.base.text()),[int(v.strip()) for v in self.ratios.text().split(',')],openings(w.book.text()),w.pairs.value(),w.seed.value(),w.play_pv.value(),parse_budget(w.checkpoint.text()))
-            for condition in state['conditions']:condition['silence_timeout_ms']=w.silence_timeout.value()*1000
+            for condition in state['conditions']:
+                condition['silence_timeout_ms'] = w.silence_timeout.value() * 1000
+                condition['opening_book'] = w.book.text().strip()
             self.runner.create(state)
         except (ValueError,OSError) as exc:self.window.error(str(exc))
     def resume(self):
         try:self.window.cancel_analysis();self.runner.resume()
         except ValueError as exc:self.window.error(str(exc))
+    def update_actions(self):
+        state = self.runner.state
+        running = self.window.tournament.active
+        available = bool(state and state['index'] < len(state['conditions']))
+        self.build_button.setEnabled(not running)
+        self.run_button.setEnabled(available and not running)
+        self.pause_button.setEnabled(available and running and
+                                     self.window.tournament.state['id'] == state['conditions'][state['index']]['id'])
+        self.export_button.setEnabled(bool(state))
+
     def refresh(self):
-        state=self.runner.state
+        self.update_actions()
+        state = self.runner.state
         if not state:return
         self.summary.setText(state['label']+f" · condition {min(state['index']+1,len(state['conditions']))}/{len(state['conditions'])}. Intervals unavailable without sufficient independent openings. No fixed strength gain is assumed.")
         self.table.setRowCount(len(state['conditions']));self.graph.points=[]

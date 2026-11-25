@@ -351,7 +351,7 @@ class AnalysisPanel(QWidget):
                 f"{'FINAL RESULT · ' if record.get('final') else ''}{record.get('kind', 'continuous')} search · {'complete ranks' if record['complete'] else 'INCOMPLETE ranks'}\n"
                 'Scores use selected perspective; ranks may have different depths/nodes (hover a line for statistics).')
         else:
-            self.details.setText('Missing analysis. Queue an explicit supplementary search below.')
+            self.details.setText('No analysis for this position. To run a search, use Advanced position analysis in Match setup.')
         if self.record:self.details.setToolTip(self.record['fen'])
         self.selected.emit()
 

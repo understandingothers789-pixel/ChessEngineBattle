@@ -52,8 +52,11 @@ def stylesheet():
     QPushButton:pressed { background: #334c61; }
     QPushButton:disabled { color: #64788b; background: #14202e; border-color: #233345; }
     QPushButton#primaryAction { background: #69d6b9; color: #08271f; font-weight: 600; border: none; }
+    QPushButton#followLive:disabled { background: #172b32; color: #a3c4c4; }
+    QPushButton#primaryAction:disabled { background: #243947; color: #8fa4b8; }
     QPushButton#primaryAction:hover { background: #8de6cd; }
-    QPushButton#boardNav { padding: 5px 10px; }
+    QPushButton#boardNav, QPushButton#reviewAction { padding: 5px 10px; }
+    QPushButton:focus { border-color: #6ed7bc; }
     QPushButton#engineLoad { background: transparent; border: none; color: #a9c6df; padding: 2px 4px; font-size: 11px; }
     QPushButton#engineLoad:hover { color: #8ce7cf; }
     QPushButton#navTab { background: transparent; border: none; color: #8ea4bc; padding: 7px 14px; }

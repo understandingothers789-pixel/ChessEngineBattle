@@ -53,3 +53,50 @@ def test_review_is_not_overwritten_by_live_search_and_return_restores(qtbot,db,p
     assert w.follow_live and w.view_game.cursor==w.tournament.game.cursor
     assert 'Live analysis' in w.analysis_heading.text()
     w.close()
+
+
+def test_workspace_navigation_opens_named_panels_and_limits_analysis_controls(qtbot, db):
+    w = Window(db)
+    qtbot.addWidget(w)
+    w.show()
+    for workspace, expected in [(3, w.results_tab), (4, w.experiment_tab), (2, w.comparison_tab)]:
+        w.nav_buttons[workspace].click()
+        assert w.tabs.currentIndex() == expected
+        assert w.perspective.isVisible() == (workspace == 2)
+        assert w.tabs.tabBar().isVisible() == (workspace == 2)
+    assert not w.ratio.isVisible()
+    w.link.setCurrentIndex(2)
+    assert w.ratio.isVisible()
+    w.tabs.setCurrentIndex(w.eval_tab)
+    assert not w.perspective.isVisible()
+    w.close()
+
+
+def test_library_search_filters_and_opens_the_correct_match(qtbot, db, profile, monkeypatch):
+    from PySide6.QtWidgets import QDialog, QLineEdit, QListWidget, QPushButton
+    from PySide6.QtCore import Qt
+
+    w = Window(db)
+    qtbot.addWidget(w)
+    for depth in (12, 16):
+        w.tournament.create([profile] * 2, [Limit('depth', depth), Limit('nodes', 1000)],
+                            schedule(openings(None), 1))
+        if depth == 12:
+            first_id = w.tournament.state['id']
+
+    def interact(dialog):
+        search = dialog.findChild(QLineEdit)
+        matches = dialog.findChild(QListWidget, 'matchLibrary')
+        opener = next(b for b in dialog.findChildren(QPushButton) if b.text() == 'Open selected match')
+        search.setText('no matching engine')
+        assert not opener.isEnabled()
+        search.setText('depth 12 nodes')
+        assert opener.isEnabled()
+        assert matches.currentItem().data(Qt.ItemDataRole.UserRole) == first_id
+        opener.click()
+        return dialog.result()
+
+    monkeypatch.setattr(QDialog, 'exec', interact)
+    w.open_library()
+    assert w.tournament.state['id'] == first_id
+    w.close()

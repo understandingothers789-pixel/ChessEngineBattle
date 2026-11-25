@@ -1,3 +1,11 @@
+# 0.5.26
+
+- Keep match presets and Review & start visible while scrolling through setup. Put each engine’s UCI settings beside its selector.
+- Open the correct Results and Experiments panels from the main navigation. Show checkpoint comparison controls only where they apply.
+- Search saved matches by engine, limits, MultiPV or opening book. Fit entries to the window and show search results as you type.
+- Make move review controls readable at smaller sizes and show when a live match is running while you review.
+- Group experiment actions together and make the results table read-only.
+
 # 0.5.25
 
 - Fresh Windows rebuild of 0.5.24 following a reported Smart App Control block.
