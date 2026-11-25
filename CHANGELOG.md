@@ -1,3 +1,8 @@
+# 0.5.27
+
+- Load engines and set each side’s clock, fixed search limit and MultiPV in the same setup panel.
+- Apply a 20-second clock with 0.2 seconds per move from the clock preset menu. Node, depth and movetime fields start at 100K, 16 and 1 second and remember separate values per engine.
+
 # 0.5.26
 
 - Keep match presets and Review & start visible while scrolling through setup. Put each engine’s UCI settings beside its selector.

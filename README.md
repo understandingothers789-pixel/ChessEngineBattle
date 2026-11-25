@@ -317,9 +317,10 @@ To allow an engine to go indefinitely without reporting search progress, set
 **Search silence timeout** to **0** in advanced match settings.
 
 To compare regular Stockfish time management against a fixed search, set
-**Engine A search mode** to **clock**, open **Clock controls**, and enter A’s
-base time and increment. Set **Engine B search mode** to **depth** or **nodes**
-and enter B’s budget. Set both MultiPV controls to **1** for standard play.
+**Engine A search mode** to **clock** and enter A’s base time and increment in
+its clock row. For example, choose **20 sec + 0.2 sec** in **Clock preset**.
+Set **Engine B search mode** to **depth** and enter **16**, or choose **nodes**
+and enter **100K** for 100,000 nodes per move. Set both MultiPV controls to **1** for standard play.
 Only the timed engine spends clock time and can lose on time. Its clock stays
 with the engine when colors swap.
 

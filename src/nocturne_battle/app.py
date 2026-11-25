@@ -56,7 +56,7 @@ class Window(QMainWindow):
         self.db = db
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.26 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.27 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -78,7 +78,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.26'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.27'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -381,6 +381,7 @@ class Window(QMainWindow):
         engine_group=QGroupBox('Engines and search limits');engine_group.setLayout(form);config.addWidget(engine_group)
         self.limit_form=form
         self.engines = [QComboBox(), QComboBox()]
+        engine_fields = []
         for side, engine_choice in enumerate(self.engines):
             engine_choice.currentIndexChanged.connect(self.refresh_engine_names)
             engine_choice.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
@@ -389,9 +390,11 @@ class Window(QMainWindow):
             row = QHBoxLayout(field)
             row.setContentsMargins(0, 0, 0, 0)
             row.addWidget(engine_choice, 1)
+            load = button('Load…', lambda checked=False, i=side: self.load_engine(i), row)
+            load.setToolTip(f'Load a UCI executable for Engine {"AB"[side]}.')
             settings = button('Settings…', lambda checked=False, i=side: self.edit_engine_settings(i), row)
             settings.setToolTip(f'Edit UCI options for Engine {"AB"[side]}.')
-            form.addRow(f'Engine {"AB"[side]}', field)
+            engine_fields.append(field)
         management=QGroupBox('Manage saved engines (optional)')
         management.setCheckable(True);management.setChecked(False)
         management_layout=QVBoxLayout(management);management_body=QWidget()
@@ -403,7 +406,7 @@ class Window(QMainWindow):
         button('Unload Engine B',lambda:self.unload_engine(1),management_buttons)
         management_layout.addWidget(management_body);management_body.hide()
         management.toggled.connect(management_body.setVisible);config.addWidget(management)
-        self.welcome = QLabel('FIRST MATCH? Load an engine from each scorecard. You can use the same executable for both sides. Then choose a clock or fixed search budget here.')
+        self.welcome = QLabel('Load a UCI engine for each side, or select the same engine twice. Then choose a search mode for each engine.')
         self.welcome.setWordWrap(True); self.welcome.setVisible(not self.profiles)
         config.insertWidget(1,self.welcome)
 
@@ -412,51 +415,62 @@ class Window(QMainWindow):
         self.mode.setCurrentText('clock')
         self.mode.setToolTip('Choose how Engine A searches. Clock uses base time and increment; movetime gives a fixed number of seconds per move; depth and nodes use fixed search limits.')
         self.mode.setItemData(3,'Base time plus an increment added after each accepted move.',Qt.ItemDataRole.ToolTipRole)
-        self.budgets = [QLineEdit('100000000'), QLineEdit('1000000000')]
+        self.budgets = [QLineEdit(), QLineEdit()]
+        self.budget_by_mode = [
+            {'nodes': '100K', 'depth': '16', 'movetime': '1'} for _ in self.budgets
+        ]
+        self.budget_modes = [None, None]
         self.mode_b = QComboBox()
         self.mode_b.addItems(['Same as A', 'nodes', 'depth', 'movetime', 'clock'])
         self.mode_b.setToolTip('Choose how Engine B searches. Same as A follows Engine A’s mode. Select clock, depth, nodes or movetime to use a different mode.')
-        form.addRow('Engine A search mode', self.mode)
-        form.addRow('Engine B search mode', self.mode_b)
-        form.addRow('Engine A search budget', self.budgets[0])
-        form.addRow('Engine B search budget', self.budgets[1])
-        self.play_pv = QSpinBox()
-        self.play_pv_b = QSpinBox()
-        for side, control in zip('AB', (self.play_pv, self.play_pv_b)):
-            control.setRange(1, 5)
-            control.setValue(3)
-            control.setToolTip('Number of candidate lines this engine searches per move. The engine still plays its best move.')
-            form.addRow(f'Engine {side} playing MultiPV', control)
-        self.clock_group=QGroupBox('Clock controls — base time + increment')
-        clock_form=QFormLayout(self.clock_group)
-        preset=QComboBox();preset.addItem('Apply a clock preset…',None)
-        for title,minutes,increment in [('10 sec + 0.1 sec',10/60,0.1),('30 sec + 0.1 sec',0.5,0.1),('1 min + 0 sec',1,0),('3 min + 2 sec',3,2),('5 min + 3 sec',5,3),('10 min + 5 sec',10,5)]:preset.addItem(title,(minutes,increment))
-        self.clock_bases=[];self.clock_increments=[]
-        self.clock_buffer=QDoubleSpinBox(); self.clock_buffer.setRange(0,10); self.clock_buffer.setDecimals(2); self.clock_buffer.setValue(0.2); self.clock_buffer.setSuffix(' sec')
+        self.play_pv, self.play_pv_b = QSpinBox(), QSpinBox()
+        self.clock_bases, self.clock_increments, self.clock_fields = [], [], []
+        for side, (mode, pv) in enumerate(zip((self.mode, self.mode_b), (self.play_pv, self.play_pv_b))):
+            engine = f'Engine {"AB"[side]}'
+            form.addRow(engine, engine_fields[side])
+            form.addRow(f'{engine} search mode', mode)
+            form.addRow(f'{engine} search budget', self.budgets[side])
+
+            base = MinutesSeconds()
+            base.minutes.setAccessibleName(f'{engine} clock minutes')
+            base.seconds.setAccessibleName(f'{engine} clock seconds')
+            increment = QDoubleSpinBox()
+            increment.setRange(0, 3600)
+            increment.setDecimals(3)
+            increment.setValue(0.1)
+            increment.setSuffix(' sec')
+            increment.setAccessibleName(f'{engine} increment in seconds')
+            increment.setToolTip('Seconds added after each accepted move.')
+            clock = QWidget()
+            row = QHBoxLayout(clock)
+            row.setContentsMargins(0, 0, 0, 0)
+            row.addWidget(base, 2)
+            row.addWidget(QLabel('+'))
+            row.addWidget(increment, 1)
+            self.clock_bases.append(base)
+            self.clock_increments.append(increment)
+            self.clock_fields.append(clock)
+            form.addRow(f'{engine} clock', clock)
+
+            pv.setRange(1, 5)
+            pv.setValue(3)
+            pv.setToolTip('Number of candidate lines this engine searches per move. The engine still plays its best move.')
+            form.addRow(f'{engine} playing MultiPV', pv)
+
+        self.clock_preset = QComboBox()
+        self.clock_preset.addItem('Apply a clock preset…', None)
+        for seconds, increment in [(10, 0.1), (20, 0.2), (30, 0.1), (60, 0), (180, 2), (300, 3), (600, 5)]:
+            start = f'{seconds} sec' if seconds < 60 else f'{seconds // 60} min'
+            self.clock_preset.addItem(f'{start} + {increment:g} sec', (seconds / 60, increment))
+        self.clock_preset.setToolTip('Set base time and increment on each engine that uses clock mode.')
+        self.clock_preset.activated.connect(self.apply_clock_preset)
+        form.addRow('Clock preset', self.clock_preset)
+        self.clock_buffer = QDoubleSpinBox()
+        self.clock_buffer.setRange(0, 10)
+        self.clock_buffer.setDecimals(2)
+        self.clock_buffer.setValue(0.2)
+        self.clock_buffer.setSuffix(' sec')
         self.clock_buffer.setToolTip('Grace allowance deducted from measured move time to absorb small engine and communication delays. Default: 0.20 seconds per move.')
-        clock_form.addRow('Move buffer', self.clock_buffer)
-        clock_form.addRow('Clock preset',preset)
-        for side in range(2):
-            base=MinutesSeconds()
-            inc=QDoubleSpinBox();inc.setRange(0,3600);inc.setDecimals(3);inc.setValue(0.1);inc.setSuffix(' sec')
-            base.setToolTip('Starting time for this engine, in minutes. Each new game resets both clocks.')
-            inc.setToolTip('Seconds added after each accepted move. A move received after time runs out does not earn increment.')
-            self.clock_bases.append(base);self.clock_increments.append(inc)
-            clock_form.addRow('Engine '+'AB'[side]+' base',base);clock_form.addRow('Engine '+'AB'[side]+' increment',inc)
-        def apply_clock_preset(index):
-            data=preset.itemData(index)
-            if data:
-                for side, mode in enumerate(self.search_modes()):
-                    if mode == "clock":
-                        self.clock_bases[side].setValue(data[0])
-                        self.clock_increments[side].setValue(data[1])
-        preset.currentIndexChanged.connect(apply_clock_preset)
-        self.clock_dialog=QDialog(self);self.clock_dialog.setWindowTitle('Clock controls — minutes, seconds and increment')
-        clock_layout=QVBoxLayout(self.clock_dialog);clock_layout.addWidget(self.clock_group)
-        done=QPushButton('Done');done.clicked.connect(self.clock_dialog.accept);clock_layout.addWidget(done)
-        self.clock_button=QPushButton('Clock controls…');self.clock_button.clicked.connect(self.clock_dialog.exec)
-        form.addRow(self.clock_button)
-        self.clock_button.hide()
         self.mode.currentTextChanged.connect(self.search_mode_changed)
         self.mode_b.currentTextChanged.connect(self.search_mode_changed)
 
@@ -524,6 +538,7 @@ class Window(QMainWindow):
         self.randomized = QCheckBox('Randomize openings')
         self.maximum = QLineEdit('')
         self.silence_timeout = QSpinBox();self.silence_timeout.setRange(0,3600);self.silence_timeout.setValue(120)
+        adv_form.addRow('Clock move buffer', self.clock_buffer)
         adv_form.addRow('Search silence timeout (seconds; 0 disables)',self.silence_timeout)
         adv_form.addRow('Seed', self.seed)
         adv_form.addRow(self.randomized)
@@ -1019,24 +1034,42 @@ class Window(QMainWindow):
         a, b = self.mode.currentText(), self.mode_b.currentText()
         return a, a if b == 'Same as A' else b
 
+    def apply_clock_preset(self, index):
+        preset = self.clock_preset.itemData(index)
+        if preset is None:
+            return
+        for side, mode in enumerate(self.search_modes()):
+            if mode == 'clock':
+                self.clock_bases[side].setValue(preset[0])
+                self.clock_increments[side].setValue(preset[1])
+        self.clock_preset.setCurrentIndex(0)
+
     def search_mode_changed(self, _mode):
         modes = self.search_modes()
-        self.clock_button.setVisible('clock' in modes)
+        self.limit_form.setRowVisible(self.clock_preset, 'clock' in modes)
         for side, (field, mode) in enumerate(zip(self.budgets, modes)):
-            field.setEnabled(mode != 'clock')
-            field.setVisible(mode != 'clock')
+            timed = mode == 'clock'
+            previous = self.budget_modes[side]
+            if previous != mode:
+                if previous in self.budget_by_mode[side]:
+                    self.budget_by_mode[side][previous] = field.text()
+                if not timed:
+                    field.setText(self.budget_by_mode[side][mode])
+                self.budget_modes[side] = mode
+            field.setEnabled(not timed)
+            self.limit_form.setRowVisible(field, not timed)
+            self.limit_form.setRowVisible(self.clock_fields[side], timed)
             label = self.limit_form.labelForField(field)
-            label.setVisible(mode != 'clock')
             guidance = {
-                'depth': 'Enter the search depth in plies. For depth 12, enter 12.',
-                'nodes': 'Enter the maximum nodes per move. You can use K, M or B, such as 1M.',
-                'movetime': 'Enter the time per move in seconds, such as 0.5 or 10.',
-                'clock': 'Set the base time and increment in Clock controls.',
-            }[mode]
-            field.setToolTip(guidance)
-            label.setToolTip(guidance)
-            self.clock_bases[side].setEnabled(mode == 'clock')
-            self.clock_increments[side].setEnabled(mode == 'clock')
+                'depth': ('search depth', 'Enter the search depth in plies. For depth 12, enter 12.'),
+                'nodes': ('node limit', 'Enter nodes per move. 100K means 100,000 nodes.'),
+                'movetime': ('seconds per move', 'Enter seconds per move, such as 0.5 or 10.'),
+                'clock': ('budget', 'Set the base time and increment in this engine’s clock row.'),
+            }
+            unit, tip = guidance[mode]
+            label.setText(f'Engine {"AB"[side]} {unit}')
+            label.setToolTip(tip)
+            field.setToolTip(tip)
         self.ratio_button.setVisible(modes == ('nodes', 'nodes'))
         self.swap_budget_button.setVisible(modes[0] == modes[1] and modes[0] != 'clock')
 
@@ -1085,14 +1118,18 @@ class Window(QMainWindow):
     def limits(self):
         result = []
         for side, mode in enumerate(self.search_modes()):
-            if mode == 'clock':
-                result.append(Limit(mode, round(self.clock_bases[side].value() * 60000),
-                                    round(self.clock_increments[side].value() * 1000)))
-            else:
-                budget = self.budgets[side].text()
-                result.append(Limit(mode, float(budget) if mode == 'movetime' else parse_budget(budget)))
-        for limit in result:
-            limit.validate()
+            try:
+                if mode == 'clock':
+                    limit = Limit(mode, round(self.clock_bases[side].value() * 60000),
+                                  round(self.clock_increments[side].value() * 1000))
+                else:
+                    budget = self.budgets[side].text()
+                    limit = Limit(mode, float(budget) if mode == 'movetime' else parse_budget(budget))
+                limit.validate()
+            except (ValueError, ArithmeticError) as exc:
+                raise ValueError(f'Engine {"AB"[side]}: enter a valid {mode} limit. '
+                                 f'{self.budgets[side].toolTip()}') from exc
+            result.append(limit)
         return result
 
     def bounds(self):
@@ -1831,7 +1868,11 @@ class Window(QMainWindow):
 
     def save_settings(self):
         self.db.put('workspace', dict(sprt_enabled=self.sprt_enabled.isChecked(),sprt_h0=self.sprt_h0.value(),sprt_h1=self.sprt_h1.value(),sprt_alpha=self.sprt_alpha.value(),sprt_beta=self.sprt_beta.value(),clock_bases=[c.value() for c in self.clock_bases],clock_increments=[c.value() for c in self.clock_increments], clock_buffer=self.clock_buffer.value(),silence_timeout=self.silence_timeout.value(), geometry=bytes(self.saveGeometry().toHex()).decode(), workspace=self.workspace.currentIndex(), splitter=self.splitter.sizes(), board_splitter=self.board_splitter.sizes(), table_widths=[self.games_table.columnWidth(i) for i in range(8)], mode=self.mode.currentText(), mode_b=self.mode_b.currentText(),
-            budgets=[x.text() for x in self.budgets], engines=[x.currentIndex() for x in self.engines],
+            budgets=[x.text() for x in self.budgets],
+            budget_by_mode=[
+                recent | ({mode: field.text()} if mode in recent else {})
+                for recent, mode, field in zip(self.budget_by_mode, self.budget_modes, self.budgets)
+            ], engines=[x.currentIndex() for x in self.engines],
             keep_best_changes=self.keep_best_changes.isChecked(), ui_layout=2, full_variations=self.full_variations.isChecked(), book=self.book.text(), pairs=self.pairs.value(), play_pv=self.play_pv.value(), play_pv_b=self.play_pv_b.value(), auto_draw=self.auto_draw.isChecked(), draw_start=self.draw_start.value(),
             checkpoint=self.checkpoint.text(), maximum=self.maximum.text(), seed=self.seed.value(),
             randomized=self.randomized.isChecked(), ratio=self.ratio.currentText(), dual=self.dual.isChecked()))
@@ -1855,6 +1896,9 @@ class Window(QMainWindow):
         for control,value in zip(self.clock_increments,state.get('clock_increments',[0.1,0.1])):control.setValue(value)
         for control, value in zip(self.budgets, state['budgets']):
             control.setText(value)
+        for recent, saved in zip(self.budget_by_mode, state.get('budget_by_mode', [])):
+            for mode in recent.keys() & saved.keys():
+                recent[mode] = saved[mode]
         for control, index in zip(self.engines, state['engines']):
             control.setCurrentIndex(min(index, len(self.profiles)-1))
         self.book.setText(state['book'])

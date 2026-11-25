@@ -178,3 +178,35 @@ def test_mixed_clock_follows_engine_after_colors_swap(qtbot, db, profile, clock_
     finally:
         t.pause()
         t.search.close()
+
+
+def test_mixed_match_setup_preset_and_mode_specific_budgets(qtbot, db, profile):
+    from nocturne_battle.model import Database
+
+    w = Window(db)
+    qtbot.addWidget(w)
+    assert w.mode.currentText() == 'clock'
+    w.mode_b.setCurrentText('nodes')
+    preset = w.clock_preset.findText('20 sec + 0.2 sec')
+    assert preset >= 0
+    w.clock_preset.activated.emit(preset)
+    assert w.limits() == [Limit('clock', 20000, 200), Limit('nodes', 100000)]
+    assert w.limit_form.isRowVisible(w.clock_fields[0])
+    assert not w.limit_form.isRowVisible(w.clock_fields[1])
+    w.budgets[1].setText('125K')
+    w.mode_b.setCurrentText('depth')
+    assert w.limits()[1] == Limit('depth', 16)
+    assert 'search depth' in w.limit_form.labelForField(w.budgets[1]).text()
+    path = db.path
+    w.close()
+    restored = Window(Database(path))
+    qtbot.addWidget(restored)
+    try:
+        assert restored.limits() == [Limit('clock', 20000, 200), Limit('depth', 16)]
+        restored.mode_b.setCurrentText('nodes')
+        assert restored.limits()[1] == Limit('nodes', 125000)
+        restored.budgets[1].setText('invalid')
+        with pytest.raises(ValueError, match='Engine B'):
+            restored.limits()
+    finally:
+        restored.close()
