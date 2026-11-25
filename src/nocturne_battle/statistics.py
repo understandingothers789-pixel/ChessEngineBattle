@@ -45,7 +45,9 @@ def analyze(state):
     interval = cluster_interval(ordered)
     n = wins+losses+draws
     score = (wins+draws/2)/n if n else None
-    return dict(games=n,wins=wins,losses=losses,draws=draws,score=score,
+    paired = [score for group in ordered for score in group]
+    return dict(pair_elo=elo(sum(paired) / len(paired)) if paired else None,
+                games=n,wins=wins,losses=losses,draws=draws,score=score,
                 elo=elo(score) if score is not None else None,
                 interval=tuple(elo(x) for x in interval) if interval else None,
                 pairs=sum(len(v) for v in clusters.values()),clusters=len(clusters),

@@ -9,6 +9,26 @@ def label(text,name):
     widget=QLabel(text);widget.setObjectName(name);return widget
 
 
+def describe_limit(limit):
+    mode, value = limit.get('mode'), limit.get('value')
+    if value is None:
+        return 'Limit unavailable'
+    if mode == 'depth':
+        return f'Depth {value:,}'
+    if mode == 'nodes':
+        return f'{value:,} nodes'
+    if mode == 'movetime':
+        return f'{value:g} seconds per move'
+    if mode == 'clock':
+        minutes, milliseconds = divmod(value, 60000)
+        seconds = milliseconds / 1000
+        base = f'{minutes:g} min' if minutes else ''
+        if seconds or not base:
+            base = f'{base} {seconds:g} sec'.strip()
+        return f"Clock {base} + {limit.get('increment_ms', 0) / 1000:g} sec"
+    return mode or 'Limit unavailable'
+
+
 class EngineName(QLabel):
     def paintEvent(self,event):
         painter=QPainter(self);painter.setPen(self.palette().color(self.foregroundRole()))
@@ -43,19 +63,7 @@ class EngineScoreboard(QWidget):
     def update_match(self,state,summary):
         self.configure_names(state['profiles'])
         for side in range(2):
-            limit = state['limits'][side]
-            mode = limit['mode']
-            value = limit['value']
-            if mode == 'depth':
-                description = f'Depth {value:,}'
-            elif mode == 'nodes':
-                description = f'{value:,} nodes'
-            elif mode == 'movetime':
-                description = f'{value:g} seconds per move'
-            elif mode == 'clock':
-                description = f"Clock {value / 60000:g} min + {limit.get('increment_ms', 0) / 1000:g} sec"
-            else:
-                description = mode
+            description = describe_limit(state['limits'][side])
             pv = state.get('multipv_by_side', [state.get('multipv', 1)] * 2)[side]
             self.limits[side].setText(f'{description} · MultiPV {pv}')
             self.limits[side].setToolTip('Match settings for this engine. Values remain with the engine when colors swap.')

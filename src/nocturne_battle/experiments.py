@@ -48,35 +48,83 @@ class ExperimentRunner(QObject):
             self.db.put('tournament:'+condition['id'],condition)
         self.save()
 
+    def can_append(self):
+        return bool(self.state and self.state.get('kind') == 'mixed' and
+                    not self.state.get('started') and not self.tournament.active)
+
+    def enqueue(self, condition, *, replace=False):
+        if self.active or self.tournament.active:
+            raise ValueError('Pause the current match before editing the experiment queue.')
+        if not replace and self.state and not self.can_append():
+            raise ValueError('Start a new queue to add different match conditions.')
+        if replace or not self.state:
+            self.create(dict(id=str(uuid4()), kind='mixed', label='Mixed match experiment',
+                             index=0, conditions=[]))
+        condition['experiment'] = self.state['id']
+        condition['name'] = f"Condition {len(self.state['conditions']) + 1} · {condition['name']}"
+        self.state['conditions'].append(condition)
+        self.db.put('tournament:' + condition['id'], condition)
+        self.save()
+
+    def owns_current_condition(self):
+        if not self.state or not self.tournament.state:
+            return False
+        index = self.state['index']
+        conditions = self.state['conditions']
+        return index < len(conditions) and conditions[index]['id'] == self.tournament.state['id']
+
     def resume(self):
-        if self.active or not self.state: return
-        if self.tournament.active: raise ValueError('Another tournament is running')
+        if self.active or not self.state or not self.state['conditions']:
+            return
+        if self.tournament.active:
+            raise ValueError('Another tournament is running')
         self.active = True
+        self.state['started'] = True
         self.next()
 
     def next(self):
-        if not self.active: return
-        if self.state['index'] >= len(self.state['conditions']):
-            self.active = False; self.save(); return
-        condition = self.state['conditions'][self.state['index']]
-        self.tournament.state = deepcopy(condition)
-        self.tournament.restore_game()
-        self.tournament.save()
-        self.tournament.resume()
+        if not self.active or self.tournament.active:
+            return
+        conditions = self.state['conditions']
+        while self.state['index'] < len(conditions):
+            index = self.state['index']
+            condition = conditions[index]
+            # The tournament archive can be newer if the app closed between
+            # committing a move and saving the queue's progress.
+            archived = self.db.get('tournament:' + condition['id'])
+            if archived and (archived['index'] > condition['index'] or
+                             (archived['index'] == condition['index'] and archived['index'] < len(archived['games']) and
+                              len(archived['games'][archived['index']]['moves']) > len(condition['games'][condition['index']]['moves']))):
+                condition = conditions[index] = archived
+            if condition['index'] < len(condition['games']):
+                self.tournament.load_new(deepcopy(condition))
+                self.tournament.resume()
+                return
+            self.state['index'] += 1
+        self.active = False
+        self.save()
 
     def observe(self):
-        if not self.state or not self.tournament.state: return
-        if self.active and not any(c['id']==self.tournament.state['id'] for c in self.state['conditions']):
-            self.active=False;self.save();return
-        for i,condition in enumerate(self.state['conditions']):
-            if condition['id'] == self.tournament.state['id']:
-                self.state['conditions'][i] = deepcopy(self.tournament.state)
-                if self.active and i == self.state['index'] and self.tournament.state['index'] >= len(condition['games']):
-                    self.state['index'] += 1
-                    QTimer.singleShot(0,self.next)
-                self.save(); break
+        if not self.state or not self.tournament.state:
+            return
+        match = self.tournament.state
+        for index, condition in enumerate(self.state['conditions']):
+            if condition['id'] != match['id']:
+                continue
+            self.state['conditions'][index] = deepcopy(match)
+            if (self.active and index == self.state['index'] and not self.tournament.active
+                    and match['index'] >= len(match['games'])):
+                self.state['index'] += 1
+                QTimer.singleShot(0, self.next)
+            self.save()
+            return
+        if self.active:
+            self.active = False
+            self.save()
 
     def pause(self):
+        owned = self.owns_current_condition()
         self.active = False
-        if self.tournament.active: self.tournament.pause()
+        if owned and self.tournament.active:
+            self.tournament.pause()
         self.save()

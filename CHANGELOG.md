@@ -1,3 +1,9 @@
+# 0.5.28
+
+- Use a saved match as a new setup with its recorded opening order, rules, limits, and MultiPV. Verify matching local engine profiles before selecting them.
+- Queue mixed match setups with a common opening schedule. Review each condition’s games, completed pairs, Elo, and interval in Experiments.
+- Publish validated Windows ZIPs and SHA-256 checksums on versioned GitHub Releases. Support optional Authenticode signing through Azure Artifact Signing.
+
 # 0.5.27
 
 - Load engines and set each side’s clock, fixed search limit and MultiPV in the same setup panel.

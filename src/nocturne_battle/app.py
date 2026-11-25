@@ -28,7 +28,7 @@ from nocturne.snapshots import node_label
 
 from .history import compare, select_checkpoint
 from .model import Database, Profile, Limit, executable_hash, openings, schedule
-from .runtime import Search, Tournament, playing_multipv
+from .runtime import Search, Tournament, new_match_state, playing_multipv
 from .time_editor import MinutesSeconds
 from .game_browser import GameBrowser
 from .studio import EngineScoreboard, ResultCards
@@ -54,9 +54,11 @@ class Window(QMainWindow):
     def __init__(self, db):
         super().__init__()
         self.db = db
+        self.setup_source = None
+        self.saved_opening_inputs = None
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.27 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.28 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -78,7 +80,7 @@ class Window(QMainWindow):
         outer = QVBoxLayout(root)
         title = QLabel('CHESS ENGINE BATTLE')
         title.setObjectName('studioTitle')
-        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.27'));outer.addLayout(brand)
+        brand=QHBoxLayout();brand.addWidget(title);brand.addStretch();brand.addWidget(QLabel('0.5.28'));outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
         self.load_a_button = button('Load engine A…', lambda:self.load_engine(0), quick)
@@ -377,6 +379,10 @@ class Window(QMainWindow):
         config = QVBoxLayout(config_area)
         setup_title=QLabel('Set up an engine match');setup_title.setObjectName('sectionTitle');config.addWidget(setup_title)
         setup_hint=QLabel('Choose your engines, set the playing conditions, then review and start.');setup_hint.setWordWrap(True);setup_hint.setObjectName('muted');config.addWidget(setup_hint)
+        self.setup_source_label = QLabel()
+        self.setup_source_label.setWordWrap(True)
+        self.setup_source_label.hide()
+        config.addWidget(self.setup_source_label)
         form = QFormLayout()
         engine_group=QGroupBox('Engines and search limits');engine_group.setLayout(form);config.addWidget(engine_group)
         self.limit_form=form
@@ -590,6 +596,9 @@ class Window(QMainWindow):
         setup_layout.addLayout(footer)
         self.splitter.setSizes([1000, 500])
         self.config_scroll = scroll
+        for signal in (self.book.textChanged, self.seed.valueChanged,
+                       self.pairs.valueChanged, self.randomized.toggled):
+            signal.connect(self.update_setup_source_label)
         self.workspace.currentIndexChanged.connect(self.change_workspace)
         self.populate_profiles()
         self.restore_settings()
@@ -796,8 +805,12 @@ class Window(QMainWindow):
         except (OSError,ValueError) as exc:self.error(str(exc))
 
     def toggle_pause(self):
-        if self.tournament.active:self.tournament.pause()
-        else:self.resume()
+        if self.experiment.active:
+            self.experiment.pause()
+        elif self.tournament.active:
+            self.tournament.pause()
+        else:
+            self.resume()
 
     def change_workspace(self, index):
         if index in self.nav_buttons:self.nav_buttons[index].setChecked(True)
@@ -838,8 +851,11 @@ class Window(QMainWindow):
         if state is None:
             self.status.setText('This match is no longer in the library.')
             return
-        if self.tournament.active:
-            self.tournament.pause()
+        if self.experiment.active or self.tournament.active:
+            if self.experiment.active:
+                self.experiment.pause()
+            else:
+                self.tournament.pause()
             if self.tournament.state['id'] == sid:
                 state = self.tournament.state
         self.cancel_analysis()
@@ -931,6 +947,49 @@ class Window(QMainWindow):
         finally:
             if was_active:self.tournament.resume()
 
+    def opening_inputs(self):
+        return self.book.text(), self.pairs.value(), self.seed.value(), self.randomized.isChecked()
+
+    def set_setup_source(self, state):
+        self.setup_source = state
+        self.saved_opening_inputs = self.opening_inputs() if state else None
+        self.update_setup_source_label()
+
+    def update_setup_source_label(self):
+        state = self.setup_source
+        if state and self.opening_inputs() == self.saved_opening_inputs:
+            self.setup_source_label.setText(
+                f"Using the saved schedule of {len(state['games'])} games. "
+                "Change the opening suite, pairs, seed or randomization to build a new schedule."
+            )
+            self.setup_source_label.show()
+        else:
+            self.setup_source_label.hide()
+
+    def use_match_setup(self, state):
+        from .review_tools import apply_conditions, local_profile_for_match, recorded_conditions
+
+        try:
+            conditions = recorded_conditions(state)
+            choices = [local_profile_for_match(self.profiles, profile) for profile in state['profiles']]
+        except (KeyError, TypeError, ValueError) as exc:
+            self.error(f'Could not restore match setup: {exc}')
+            return False
+
+        apply_conditions(self, conditions)
+        for combo, choice in zip(self.engines, choices):
+            combo.setCurrentIndex(choice)
+        self.set_setup_source(state)
+        self.save_settings()
+        self.open_setup()
+        missing = [f'Engine {"AB"[side]} ({state["profiles"][side]["name"]})'
+                   for side, choice in enumerate(choices) if choice < 0]
+        if missing:
+            QMessageBox.information(self.setup_dialog, 'Choose local engines',
+                                    'Load or select a matching local profile for ' + ' and '.join(missing) +
+                                    '. The recorded executable or network files could not be verified.')
+        return True
+
     def open_library(self):
         dialog = QDialog(self)
         dialog.setWindowTitle('Saved matches')
@@ -973,6 +1032,7 @@ class Window(QMainWindow):
             else:
                 count.setText('No matches fit your search.' if matches.count() else 'No saved matches yet.')
             open_button.setEnabled(visible > 0)
+            setup_button.setEnabled(visible > 0)
 
         def refresh():
             self.refresh_archives()
@@ -989,6 +1049,16 @@ class Window(QMainWindow):
             if not row or row.isHidden():return
             self.archive_selector.setCurrentIndex(self.archive_selector.findData(row.data(Qt.ItemDataRole.UserRole)))
             self.open_archive(); dialog.accept()
+        def use_setup():
+            row = matches.currentItem()
+            if row is None or row.isHidden():
+                return
+            state = self.db.get('tournament:' + row.data(Qt.ItemDataRole.UserRole))
+            if state and self.use_match_setup(state):
+                dialog.accept()
+                self.setup_dialog.raise_()
+                self.setup_dialog.activateWindow()
+
         def import_file():
             path,_ = QFileDialog.getOpenFileName(dialog,'Open saved match file',filter='Chess Engine Battle match (*.cebattle);;All files (*)')
             if not path:return
@@ -1003,6 +1073,8 @@ class Window(QMainWindow):
         controls = QHBoxLayout(); layout.addLayout(controls)
         open_button = button('Open selected match', open_selected, controls)
         open_button.setObjectName('primaryAction')
+        setup_button = button('Use this setup', use_setup, controls)
+        setup_button.setToolTip('Fill Match Setup from this match so you can start a new comparison.')
         button('Open match file…',import_file,controls)
         button('Close',dialog.reject,controls)
         matches.itemActivated.connect(lambda _: open_selected())
@@ -1171,46 +1243,96 @@ class Window(QMainWindow):
             except (ValueError, OSError) as exc:
                 self.error(str(exc))
 
+    def prepared_match(self, shared=None):
+        from .adjudication import DEFAULT_RULE
+        from .review_tools import replay_openings
+        from .sequential import start_test
+
+        profiles, limits = self.selected_profiles(), self.limits()
+        source = self.setup_source
+        if shared is None:
+            checkpoint, maximum = self.bounds()
+            seed = self.seed.value()
+            if source and self.opening_inputs() == self.saved_opening_inputs:
+                games = replay_openings(source['games'])
+                book = source.get('opening_book')
+            else:
+                book = self.book.text().strip()
+                games = schedule(openings(book), self.pairs.value(), seed, self.randomized.isChecked())
+            draw_rule = dict(source.get('draw_rule', DEFAULT_RULE) if source else DEFAULT_RULE)
+            draw_rule.update(enabled=self.auto_draw.isChecked(), after_move=self.draw_start.value())
+            sprt = start_test(self.sprt_h0.value(), self.sprt_h1.value(),
+                              self.sprt_alpha.value(), self.sprt_beta.value()) if self.sprt_enabled.isChecked() else None
+        else:
+            checkpoint, maximum = shared['checkpoint'], shared.get('maximum')
+            seed, book = shared.get('seed', 0), shared.get('opening_book')
+            games = replay_openings(shared['games'])
+            draw_rule = dict(shared.get('draw_rule', DEFAULT_RULE))
+            previous = shared.get('sprt')
+            sprt = start_test(**{key: previous[key] for key in ('h0', 'h1', 'alpha', 'beta')}) if previous else None
+
+        state = new_match_state(profiles, limits, games, self.play_pv.value(), checkpoint,
+                                maximum, seed, multipv_b=self.play_pv_b.value())
+        state.update(
+            opening_book=book,
+            randomized_openings=self.randomized.isChecked() if shared is None else shared.get('randomized_openings', False),
+            silence_timeout_ms=self.silence_timeout.value() * 1000 if shared is None else shared.get('silence_timeout_ms', 120000),
+            clock_buffer_seconds=self.clock_buffer.value() if shared is None else shared.get('clock_buffer_seconds', 0.2),
+            save_best_changes=self.keep_best_changes.isChecked() if shared is None else shared.get('save_best_changes', True),
+            draw_rule=draw_rule,
+        )
+        rules_source = shared if shared is not None else source
+        if rules_source and 'max_plies' in rules_source:
+            state['max_plies'] = rules_source['max_plies']
+        if sprt:
+            state['sprt'] = sprt
+        return state
+
     def start_match(self):
+        from .studio import describe_limit
+
         try:
-            from .sequential import start_test
-            sprt_config=start_test(self.sprt_h0.value(),self.sprt_h1.value(),self.sprt_alpha.value(),self.sprt_beta.value()) if self.sprt_enabled.isChecked() else None
-            profiles, limits = self.selected_profiles(), self.limits()
-            start, maximum = self.bounds()
-            opening_schedule = schedule(openings(self.book.text()), self.pairs.value(),
-                                        self.seed.value(), self.randomized.isChecked())
-            description = '\n'.join(f"{p.name}: "+(f"{l.value/60000:g} min + {l.increment_ms/1000:g} sec" if l.mode=='clock' else f"{l.value:,} {l.mode}")+f", Threads={p.options.get('Threads','default')}, Hash={p.options.get('Hash','default')}" for p,l in zip(profiles,limits))
-            description += f"\n{self.pairs.value()*2} games · {self.book.text() or 'start position'} · Engine A MultiPV {self.play_pv.value()} · Engine B MultiPV {self.play_pv_b.value()} · checkpoints from {start:,}"
-            for profile in profiles:
-                path=next((v for k,v in profile.options.items() if k.lower()=='syzygypath' and v),'not configured')
-                description+=f'\n{profile.name} · tablebases: {path}'
-            if any(limit.mode == 'clock' for limit in limits): description += f'\nMove buffer: {self.clock_buffer.value():.2f} seconds'
-            description += (f'\nAutomatic draw: from move {self.draw_start.value()}, both within ±0.30 for 10 consecutive plies' if self.auto_draw.isChecked() else '\nAutomatic evaluation draw: off')
-            if sprt_config:description += f"\nSPRT monitor: H0 {sprt_config['h0']:+g}, H1 {sprt_config['h1']:+g} nElo; alpha {sprt_config['alpha']:.1%}, beta {sprt_config['beta']:.1%}. Schedule continues after decision."
-            if QMessageBox.question(self, 'Match configuration', description+'\nStart this match?') != QMessageBox.StandardButton.Yes: return
+            state = self.prepared_match()
+            description = '\n'.join(
+                f"Engine {'AB'[side]} · {profile['name']} · {describe_limit(state['limits'][side])}"
+                f" · MultiPV {playing_multipv(state, side)}"
+                f"\nThreads {profile['options'].get('Threads', 'default')} · Hash {profile['options'].get('Hash', 'default')}"
+                f" · Tablebases {next((v for k, v in profile['options'].items() if k.lower() == 'syzygypath' and v), 'not configured')}"
+                for side, profile in enumerate(state['profiles'])
+            )
+            book = state['opening_book']
+            opening_text = Path(book).name if book else ('Saved opening schedule' if book is None else 'Starting position')
+            description += f"\n\n{len(state['games'])} games · {opening_text} · Checkpoints from {state['checkpoint']:,} nodes"
+            if any(limit['mode'] == 'clock' for limit in state['limits']):
+                description += f"\nMove buffer {state['clock_buffer_seconds']:.2f} seconds"
+            rule = state['draw_rule']
+            if rule['enabled']:
+                description += (f"\nAutomatic draw · from move {rule['after_move']}, within ±{rule['draw_cp']/100:g}"
+                                f" for {rule['consecutive_plies']} consecutive plies")
+            else:
+                description += '\nAutomatic evaluation draw off'
+            if sprt := state.get('sprt'):
+                description += (f"\nSPRT monitor · H0 {sprt['h0']:+g}, H1 {sprt['h1']:+g} nElo"
+                                f" · alpha {sprt['alpha']:.1%}, beta {sprt['beta']:.1%}. Schedule continues after a decision.")
+            if QMessageBox.question(self, 'Match configuration', description+'\n\nStart this match?') != QMessageBox.StandardButton.Yes:
+                return
             self.cancel_analysis()
-            self.tournament.create(profiles, limits, opening_schedule, self.play_pv.value(),
-                                   start, maximum, self.seed.value(), multipv_b=self.play_pv_b.value())
-            self.tournament.state['opening_book'] = self.book.text().strip()
-            self.tournament.state['silence_timeout_ms']=self.silence_timeout.value()*1000
-            self.tournament.state['clock_buffer_seconds']=self.clock_buffer.value()
-            if sprt_config:self.tournament.state['sprt']=sprt_config
-            self.tournament.state['save_best_changes']=self.keep_best_changes.isChecked()
-            self.tournament.state['draw_rule']['enabled']=self.auto_draw.isChecked()
-            self.tournament.state['draw_rule']['after_move']=self.draw_start.value()
-            self.tournament.save()
+            self.tournament.load_new(state)
             self.follow_live = True
             self.save_settings()
             self.setup_dialog.hide()
             self.workspace.setCurrentIndex(1)
             self.tournament.resume()
-        except (ValueError, OSError) as exc:
+        except (ValueError, OSError, ArithmeticError) as exc:
             self.error(str(exc))
 
     def resume(self):
         self.cancel_analysis()
         self.workspace.setCurrentIndex(1)
-        self.tournament.resume()
+        if self.experiment.owns_current_condition():
+            self.experiment.resume()
+        else:
+            self.tournament.resume()
 
     def adjudicate_game(self):
         if not self.tournament.game or self.tournament.game.outcome:
@@ -1868,6 +1990,8 @@ class Window(QMainWindow):
 
     def save_settings(self):
         self.db.put('workspace', dict(sprt_enabled=self.sprt_enabled.isChecked(),sprt_h0=self.sprt_h0.value(),sprt_h1=self.sprt_h1.value(),sprt_alpha=self.sprt_alpha.value(),sprt_beta=self.sprt_beta.value(),clock_bases=[c.value() for c in self.clock_bases],clock_increments=[c.value() for c in self.clock_increments], clock_buffer=self.clock_buffer.value(),silence_timeout=self.silence_timeout.value(), geometry=bytes(self.saveGeometry().toHex()).decode(), workspace=self.workspace.currentIndex(), splitter=self.splitter.sizes(), board_splitter=self.board_splitter.sizes(), table_widths=[self.games_table.columnWidth(i) for i in range(8)], mode=self.mode.currentText(), mode_b=self.mode_b.currentText(),
+            setup_source_id=(self.setup_source['id'] if self.setup_source and
+                             self.opening_inputs() == self.saved_opening_inputs else None),
             budgets=[x.text() for x in self.budgets],
             budget_by_mode=[
                 recent | ({mode: field.text()} if mode in recent else {})
@@ -1915,6 +2039,8 @@ class Window(QMainWindow):
         self.randomized.setChecked(state['randomized'])
         self.ratio.setCurrentText(state['ratio'])
         self.dual.setChecked(state['dual'])
+        if source_id := state.get('setup_source_id'):
+            self.set_setup_source(self.db.get('tournament:' + source_id))
 
     def closeEvent(self, event):
         if self._closed:
@@ -1924,7 +2050,9 @@ class Window(QMainWindow):
         self.setup_dialog.close()
         self.preview_popup.close()
         self.save_settings()
-        if self.tournament.state:
+        if self.experiment.active:
+            self.experiment.pause()
+        elif self.tournament.state:
             self.tournament.pause()
         self.tournament.search.close()
         self.analysis.close()

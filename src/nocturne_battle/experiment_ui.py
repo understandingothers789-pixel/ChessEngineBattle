@@ -3,10 +3,12 @@ import json
 import math
 
 from PySide6.QtGui import QColor,QPainter,QPen
-from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QLabel,QLineEdit,QPushButton,QTableWidget,QTableWidgetItem,QFileDialog,QAbstractItemView
+from PySide6.QtWidgets import QWidget,QVBoxLayout,QHBoxLayout,QLabel,QLineEdit,QPushButton,QTableWidget,QTableWidgetItem,QFileDialog,QAbstractItemView,QMessageBox,QHeaderView
 from .experiments import build_experiment
 from .model import parse_budget,openings
 from .statistics import analyze
+from .runtime import playing_multipv
+from .studio import describe_limit
 
 
 class ScalingGraph(QWidget):
@@ -15,7 +17,7 @@ class ScalingGraph(QWidget):
     def paintEvent(self,event):
         painter=QPainter(self); painter.fillRect(self.rect(),QColor('#19232d'))
         painter.setPen(QColor('#b3c5cd')); painter.drawText(12,20,'Exploratory Elo of B over A / log node ratio; unbounded or missing estimates excluded')
-        valid=[(ratio,-r['elo'],r) for ratio,r in self.points if r['elo'] is not None and math.isfinite(r['elo'])]
+        valid=[(ratio,-r['pair_elo'],r) for ratio,r in self.points if r['pair_elo'] is not None and math.isfinite(r['pair_elo'])]
         if not valid: return
         max_x=max(math.log2(ratio) for ratio,_,_ in valid) or 1
         scale=max(100,max(abs(v) for _,v,_ in valid))
@@ -36,13 +38,21 @@ class ScalingPanel(QWidget):
     def __init__(self, window, runner):
         super().__init__(); self.window=window; self.runner=runner
         layout=QVBoxLayout(self)
-        title = QLabel('Node scaling experiment')
+        title = QLabel('Match experiments')
         title.setObjectName('sectionTitle')
         layout.addWidget(title)
-        label = QLabel('Uses Engine A and the opening suite, pairs, seed and MultiPV from Match Setup. Every ratio plays the same paired openings.')
+        label = QLabel('Queue the current Match Setup, then change either engine, limit or MultiPV and queue another. Every condition uses the first setup’s paired openings and match rules.')
         label.setWordWrap(True)
         label.setObjectName('muted')
         layout.addWidget(label)
+        queue_actions = QHBoxLayout()
+        self.queue_button = QPushButton('Queue current setup')
+        self.queue_button.clicked.connect(self.queue_setup)
+        queue_actions.addWidget(self.queue_button)
+        self.remove_button = QPushButton('Remove queued condition')
+        self.remove_button.clicked.connect(self.remove_condition)
+        queue_actions.addWidget(self.remove_button)
+        layout.addLayout(queue_actions)
         row = QHBoxLayout()
         self.base = QLineEdit('1M')
         self.ratios = QLineEdit('2, 5, 10, 25, 50, 100')
@@ -54,7 +64,8 @@ class ScalingPanel(QWidget):
         row.addWidget(self.ratios)
         layout.addLayout(row)
         actions = QHBoxLayout()
-        self.build_button = QPushButton('Build experiment')
+        self.build_button = QPushButton('Build node scaling')
+        self.build_button.setToolTip('Build a separate experiment using Engine A for both sides with fixed node ratios.')
         self.run_button = QPushButton('Start / resume')
         self.pause_button = QPushButton('Pause')
         self.export_button = QPushButton('Export JSON…')
@@ -68,49 +79,129 @@ class ScalingPanel(QWidget):
         layout.addLayout(actions)
         self.summary=QLabel('No experiment loaded.'); self.summary.setWordWrap(True);layout.addWidget(self.summary)
         self.graph=ScalingGraph();layout.addWidget(self.graph)
-        self.table=QTableWidget(0,10);self.table.setHorizontalHeaderLabels(['Ratio','A nodes','B nodes','Games','A W/L/D','A score','B Elo','B Elo interval','Pairs / clusters','Status'])
+        self.table = QTableWidget(0, 4)
+        self.table.setHorizontalHeaderLabels(['Engine A', 'Engine B', 'Progress', 'A − B Elo'])
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.table.setWordWrap(True)
+        self.table.setColumnWidth(2, 94)
+        self.table.setColumnWidth(3, 122)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.cellActivated.connect(self.open_condition)
+        self.table.itemSelectionChanged.connect(self.update_actions)
         self.table.setToolTip('Double-click a condition or press Enter to review its games.')
         layout.addWidget(self.table)
         runner.changed.connect(self.refresh)
         window.tournament.changed.connect(self.update_actions)
         self.refresh()
+    def confirm_new_queue(self):
+        if not self.runner.state or not self.runner.state['conditions']:
+            return True
+        return QMessageBox.question(self, 'Replace experiment queue',
+                                    'Start a new queue? The current conditions remain in Saved Matches.') == QMessageBox.StandardButton.Yes
+
+    def queue_setup(self):
+        try:
+            append = self.runner.can_append()
+            shared = (self.runner.state['conditions'][0]
+                      if append and self.runner.state['conditions'] else None)
+            condition = self.window.prepared_match(shared=shared)
+            if not append and not self.confirm_new_queue():
+                return
+            self.runner.enqueue(condition, replace=not append)
+        except (ValueError, OSError, ArithmeticError) as exc:
+            self.window.error(str(exc))
+
+    def remove_condition(self):
+        row = self.table.currentRow()
+        if not self.runner.can_append() or row < 0:
+            return
+        # Only draft queue entries can be removed. Their saved match copies stay
+        # available in the library, just as when replacing a queue.
+        self.runner.state['conditions'].pop(row)
+        self.runner.save()
+
     def build(self):
         try:
             w=self.window
             state=build_experiment(w.selected_profiles()[0],parse_budget(self.base.text()),[int(v.strip()) for v in self.ratios.text().split(',')],openings(w.book.text()),w.pairs.value(),w.seed.value(),w.play_pv.value(),parse_budget(w.checkpoint.text()))
+            if not self.confirm_new_queue():
+                return
             for condition in state['conditions']:
                 condition['silence_timeout_ms'] = w.silence_timeout.value() * 1000
                 condition['opening_book'] = w.book.text().strip()
             self.runner.create(state)
-        except (ValueError,OSError) as exc:self.window.error(str(exc))
+        except (ValueError,OSError,ArithmeticError) as exc:self.window.error(str(exc))
     def resume(self):
-        try:self.window.cancel_analysis();self.runner.resume()
-        except ValueError as exc:self.window.error(str(exc))
+        try:
+            self.window.cancel_analysis()
+            self.window.follow_live = True
+            self.runner.resume()
+        except ValueError as exc:
+            self.window.error(str(exc))
     def update_actions(self):
         state = self.runner.state
-        running = self.window.tournament.active
+        running = self.window.tournament.active or self.runner.active
         available = bool(state and state['index'] < len(state['conditions']))
+        editable = self.runner.can_append()
+        self.queue_button.setText('Queue current setup' if editable or not state else 'New queue from current setup')
+        self.queue_button.setEnabled(not running)
+        self.remove_button.setEnabled(editable and 0 <= self.table.currentRow() < len(state['conditions']))
         self.build_button.setEnabled(not running)
         self.run_button.setEnabled(available and not running)
-        self.pause_button.setEnabled(available and running and
-                                     self.window.tournament.state['id'] == state['conditions'][state['index']]['id'])
-        self.export_button.setEnabled(bool(state))
+        self.pause_button.setEnabled(self.runner.active or
+                                     (self.window.tournament.active and self.runner.owns_current_condition()))
+        self.export_button.setEnabled(bool(state and state['conditions']))
 
     def refresh(self):
-        self.update_actions()
         state = self.runner.state
-        if not state:return
-        self.summary.setText(state['label']+f" · condition {min(state['index']+1,len(state['conditions']))}/{len(state['conditions'])}. Intervals unavailable without sufficient independent openings. No fixed strength gain is assumed.")
-        self.table.setRowCount(len(state['conditions']));self.graph.points=[]
-        for row,c in enumerate(state['conditions']):
-            r=analyze(c);self.graph.points.append((c['ratio'],r))
-            ci=r['interval']; elo=r['elo']
-            values=[str(c['ratio'])+'×',str(c['limits'][0]['value']),str(c['limits'][1]['value']),str(r['games']),f"{r['wins']}/{r['losses']}/{r['draws']}",f"{r['score']:.1%}" if r['score'] is not None else '—',f'{-elo:+.1f}' if elo is not None else '—',f'{-ci[1]:+.1f} to {-ci[0]:+.1f}' if ci else 'Unavailable',f"{r['pairs']} / {r['clusters']}",r['status']]
-            for col,value in enumerate(values):self.table.setItem(row,col,QTableWidgetItem(value))
+        conditions = state['conditions'] if state else []
+        mixed = bool(state and state.get('kind') == 'mixed')
+        self.graph.setVisible(not mixed and bool(conditions))
+        self.graph.points = []
+        if conditions:
+            complete = sum(c['index'] >= len(c['games']) for c in conditions)
+            self.summary.setText(f"{state['label']} · {complete}/{len(conditions)} conditions complete. "
+                                 "Estimates use completed opening pairs.")
+        else:
+            self.summary.setText('Queue a match setup or build a node-scaling experiment.')
+        self.table.setRowCount(len(conditions))
+        for row, condition in enumerate(conditions):
+            result = analyze(condition)
+            if 'ratio' in condition:
+                self.graph.points.append((condition['ratio'], result))
+            per_side = [
+                f"{profile['name']}\n{describe_limit(limit)}\nMultiPV {playing_multipv(condition, side)}"
+                for side, (profile, limit) in enumerate(zip(condition['profiles'], condition['limits']))
+            ]
+            # Use the same score basis for the estimate and its interval.
+            elo = result['pair_elo']
+            interval = result['interval']
+            estimate = f'{elo:+.0f}' if elo is not None and math.isfinite(elo) else (
+                '+∞' if elo == math.inf else '−∞' if elo == -math.inf else '—')
+            bounds = f'{interval[0]:+.0f} to {interval[1]:+.0f}' if interval else '—'
+            total = len(condition['games'])
+            status = ('Complete' if condition['index'] >= total else
+                      'Running' if self.window.tournament.active and self.window.tournament.state['id'] == condition['id'] else
+                      'Paused' if result['games'] or condition['index'] else 'Queued')
+            progress = f"{status}\n{result['games']}/{total} games\n{result['pairs']} pairs"
+            score = estimate + (f'\n95% {bounds}' if interval else '')
+            for col, value in enumerate([*per_side, progress, score]):
+                item = QTableWidgetItem(value)
+                tip = value
+                if col == 2:
+                    tip += f"\nEngine A wins/draws/losses: {result['wins']}/{result['draws']}/{result['losses']}"
+                if col == 3:
+                    tip += '\nElo estimate uses completed opening pairs.'
+                    if not interval:
+                        tip += ' The interval needs at least ten distinct openings and varying scores.'
+                item.setToolTip(tip)
+                self.table.setItem(row, col, item)
+        self.table.resizeRowsToContents()
         self.graph.update()
+        self.update_actions()
+
     def open_condition(self,row,col):
         if self.window.tournament.active:
             self.window.error('Pause the experiment before opening another condition.');return
@@ -127,7 +218,7 @@ class ScalingPanel(QWidget):
             data['experiment']=self.runner.state
             data['condition_statistics']=[dict(tournament=c['id'],**analyze(c)) for c in self.runner.state['conditions']]
             for result in data['condition_statistics']:
-                for key in ('elo','interval'):
+                for key in ('elo', 'pair_elo', 'interval'):
                     value=result.get(key)
                     if isinstance(value,float) and not math.isfinite(value):result[key]='unbounded positive' if value>0 else 'unbounded negative'
                     if isinstance(value,tuple):result[key]=[v if math.isfinite(v) else ('unbounded positive' if v>0 else 'unbounded negative') for v in value]

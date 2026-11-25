@@ -334,6 +334,25 @@ EvalFile/EvalFileSmall/WeightsFile are hashed and checked for changes. Default
 external networks selected internally by engines are not discoverable through
 standard UCI; set those options explicitly for reproducible cache identity.
 
+## Repeat and queue comparisons
+
+In **Match library**, select a match and click **Use this setup**. Match Setup
+opens with its limits, MultiPV, clocks, rules, and saved opening order. Profiles
+are selected when a matching local executable and network files can be verified.
+If the app asks you to choose a local engine, load or select it before starting.
+Change the opening suite, pair count, seed, or randomization to build a new
+schedule. Otherwise the recorded opening positions and order are reused.
+
+In **Experiments**, click **Queue current setup** to capture both engines.
+For example, queue a timed Stockfish 15 against Stockfish development at
+100K nodes. Change Engine B to depth 16 in Match Setup, then queue that setup
+too. Each condition captures both profiles, limits, and MultiPV. The first
+condition supplies the opening schedule and shared rules for the queue.
+Click **Start / resume** to run the conditions in order. The table shows
+completed games and pairs, paired A-minus-B Elo, and an estimated 95% interval
+when enough opening data is available. Activate a condition to review its
+saved games. The original **Build node scaling** option remains available.
+
 ## Inspect what both engines thought
 
 Starting or resuming a match opens **Live Match** automatically on the right.

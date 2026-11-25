@@ -223,6 +223,25 @@ def playing_multipv(state, side):
     return values[side] if values is not None else state['multipv']
 
 
+def new_match_state(profiles, limits, games, multipv=1, checkpoint=1_000_000,
+                    maximum=None, seed=0, *, multipv_b=None):
+    for limit in limits:
+        limit.validate()
+    values = (multipv, multipv if multipv_b is None else multipv_b)
+    if any(type(pv) is not int or not 1 <= pv <= 5 for pv in values):
+        raise ValueError('Playing MultiPV must be 1–5 for each engine.')
+    if not games:
+        raise ValueError('A match needs at least one opening pair.')
+    state = dict(id=str(uuid4()), profiles=[asdict(p) for p in profiles],
+                 limits=[asdict(limit) for limit in limits], games=games, index=0,
+                 multipv=multipv, checkpoint=checkpoint, maximum=maximum, seed=seed,
+                 draw_rule=dict(DEFAULT_RULE), clock_buffer_seconds=0.2, created_at=time.time(),
+                 name=f'{profiles[0].name} vs {profiles[1].name}')
+    if multipv_b is not None:
+        state['multipv_by_side'] = list(values)
+    return state
+
+
 class Tournament(QObject):
     changed = Signal()
     clock_changed = Signal()
@@ -261,17 +280,13 @@ class Tournament(QObject):
         if item['result'] != '*':self.game.declared=Outcome(item['result'],item.get('termination','Stored result'))
 
     def create(self, profiles, limits, games, multipv=1, checkpoint=1_000_000, maximum=None, seed=0, *, multipv_b=None):
+        self.load_new(new_match_state(profiles, limits, games, multipv, checkpoint,
+                                      maximum, seed, multipv_b=multipv_b))
+
+    def load_new(self, state):
         if self.active:
             raise ValueError('Pause the current match first')
-        for limit in limits:limit.validate()
-        if any(type(pv) is not int or not 1 <= pv <= 5 for pv in (multipv, multipv if multipv_b is None else multipv_b)):
-            raise ValueError('Playing MultiPV must be 1–5 for each engine.')
-        self.state = dict(id=str(uuid4()), profiles=[asdict(p) for p in profiles],
-                          limits=[asdict(l) for l in limits], games=games, index=0,
-                          multipv=multipv, checkpoint=checkpoint, maximum=maximum, seed=seed,
-                          draw_rule=dict(DEFAULT_RULE), clock_buffer_seconds=0.2, created_at=time.time(), name=f'{profiles[0].name} vs {profiles[1].name}')
-        if multipv_b is not None:
-            self.state['multipv_by_side'] = [multipv, multipv_b]
+        self.state = state
         self.restore_game()
         self.save()
 

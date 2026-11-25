@@ -37,5 +37,120 @@ jobs:
           Get-FileHash dist/ChessEngineBattle/ChessEngineBattle.exe -Algorithm SHA256 | Format-List | Out-File -Append dist/ChessEngineBattle/BUILD-INFO.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: ChessEngineBattle-0.5.27-Windows
+          name: ChessEngineBattle-0.5.28-Windows
           path: dist/ChessEngineBattle/
+  publish:
+    name: Publish validated Windows ZIP
+    needs: desktop
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      id-token: write
+    concurrency:
+      group: windows-release-main
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve release version
+        id: release
+        shell: pwsh
+        run: |
+          $line = Select-String -Path pyproject.toml -Pattern '^version = "(\d+\.\d+\.\d+)"$'
+          if (-not $line) { throw 'Invalid project version' }
+          $version = $line.Matches[0].Groups[1].Value
+          "version=$version" >> $env:GITHUB_OUTPUT
+          $existing = gh release view "v$version" --json isDraft --jq .isDraft 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            if ($existing -eq 'true') { throw "v$version already has a draft release" }
+            "publish=false" >> $env:GITHUB_OUTPUT
+          } else {
+            "publish=true" >> $env:GITHUB_OUTPUT
+          }
+          exit 0
+      - uses: actions/download-artifact@v4
+        if: steps.release.outputs.publish == 'true'
+        with:
+          name: ChessEngineBattle-${{ steps.release.outputs.version }}-Windows
+          path: dist/ChessEngineBattle
+      - name: Authenticate to Azure for signing
+        if: steps.release.outputs.publish == 'true' && vars.WINDOWS_SIGNING_ENABLED == 'true'
+        uses: azure/login@053f7285eb20bf5469ef084617b0b24d3cec53fc # v3.1.0
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Sign the application executable
+        if: steps.release.outputs.publish == 'true' && vars.WINDOWS_SIGNING_ENABLED == 'true'
+        uses: azure/artifact-signing-action@208f8af4bf26cf2af8597424e3cb5582801523ba # v2.0.0
+        with:
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_SIGNING_PROFILE }}
+          files: ${{ github.workspace }}\dist\ChessEngineBattle\ChessEngineBattle.exe
+          exclude-azure-cli-credential: false
+      - name: Verify signature and build release ZIP
+        if: steps.release.outputs.publish == 'true'
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          SIGNING_ENABLED: ${{ vars.WINDOWS_SIGNING_ENABLED }}
+        run: |
+          $root = "dist/ChessEngineBattle"
+          $exe = "$root/ChessEngineBattle.exe"
+          $signature = Get-AuthenticodeSignature -FilePath $exe
+          if ($env:SIGNING_ENABLED -eq 'true' -and $signature.Status -ne 'Valid') {
+            throw "Requested Authenticode signing failed verification: $($signature.Status)"
+          }
+          @(
+            "Version: $env:VERSION"
+            "Source commit: $env:GITHUB_SHA"
+            "Authenticode: $($signature.Status)"
+            "Publisher: $($signature.SignerCertificate.Subject)"
+            "Executable SHA-256: $((Get-FileHash -Path $exe -Algorithm SHA256).Hash)"
+          ) | Set-Content "$root/RELEASE-INFO.txt"
+          "Authenticode: $($signature.Status)" >> $env:GITHUB_STEP_SUMMARY
+          New-Item -ItemType Directory -Path release | Out-Null
+          $name = "ChessEngineBattle-$env:VERSION-Windows.zip"
+          $zip = "release/$name"
+          Compress-Archive -Path $root -DestinationPath $zip
+          $hash = (Get-FileHash -Path $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $name" | Set-Content -Encoding ascii "$zip.sha256"
+      - name: Verify startup from the extracted release ZIP
+        if: steps.release.outputs.publish == 'true'
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          Expand-Archive -LiteralPath "release/ChessEngineBattle-$env:VERSION-Windows.zip" -DestinationPath extracted
+          $app = Start-Process -FilePath "extracted/ChessEngineBattle/ChessEngineBattle.exe" -ArgumentList '--smoke-test' -PassThru
+          if (-not $app.WaitForExit(45000)) {
+            $app.Kill()
+            throw 'Release ZIP startup test timed out'
+          }
+          if ($app.ExitCode -ne 0) { throw "Release ZIP startup failed: $($app.ExitCode)" }
+      - name: Publish release and checksum
+        if: steps.release.outputs.publish == 'true'
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          $zip = "release/ChessEngineBattle-$env:VERSION-Windows.zip"
+          $signature = (Get-AuthenticodeSignature 'dist/ChessEngineBattle/ChessEngineBattle.exe').Status
+          $lines = Get-Content CHANGELOG.md
+          $notes = [System.Collections.Generic.List[string]]::new()
+          $inVersion = $false
+          foreach ($line in $lines) {
+            if ($line -eq "# $env:VERSION") { $inVersion = $true; continue }
+            if ($inVersion -and $line -match '^# ') { break }
+            if ($inVersion) { $notes.Add($line) }
+          }
+          $notes.Add('')
+          $notes.Add("Windows desktop tests and startup from the extracted ZIP passed. Authenticode status: $signature.")
+          $notes.Add('Extract the whole ZIP and run ChessEngineBattle.exe. The SHA-256 checksum covers the ZIP.')
+          $notes | Set-Content release/notes.md
+          gh release create "v$env:VERSION" $zip "$zip.sha256" --target $env:GITHUB_SHA --title "Chess Engine Battle $env:VERSION" --notes-file release/notes.md
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub Release publication failed' }

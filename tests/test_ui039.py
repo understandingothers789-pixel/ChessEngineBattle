@@ -100,3 +100,52 @@ def test_library_search_filters_and_opens_the_correct_match(qtbot, db, profile, 
     w.open_library()
     assert w.tournament.state['id'] == first_id
     w.close()
+
+
+def test_reuse_saved_match_keeps_openings_and_selects_verified_local_engines(qtbot, db, profile, monkeypatch):
+    from dataclasses import asdict
+    from PySide6.QtWidgets import QDialog, QPushButton, QMessageBox
+    from nocturne.core.game import Game
+    from nocturne_battle.model import Opening
+    from nocturne_battle.sequential import start_test
+
+    second = replace(profile, name='B', id='second', options={'Hash': 16})
+    db.put('profiles', [asdict(second), asdict(profile)])
+    w = Window(db)
+    qtbot.addWidget(w)
+    opening = Opening(Game().initial_fen, moves=['e2e4'], name='King pawn')
+    w.tournament.create([profile, second], [Limit('clock', 20000, 200), Limit('depth', 16)],
+                        schedule([opening], 1), multipv=1, multipv_b=2)
+    match = w.tournament.state
+    match['opening_book'] = 'no-longer-present.pgn'
+    match['games'][0]['moves'].append('e7e5')
+    match['games'][0]['result'] = '1/2-1/2'
+    match['clock_buffer_seconds'] = 0.45
+    match['sprt'] = start_test(0, 7, .1, .1)
+    match['sprt']['decision'] = 'H1 accepted'
+    w.tournament.save()
+
+    def select_setup(dialog):
+        action = next(button for button in dialog.findChildren(QPushButton)
+                      if button.text() == 'Use this setup')
+        action.click()
+        return dialog.result()
+
+    monkeypatch.setattr(QDialog, 'exec', select_setup)
+    w.open_library()
+    assert w.setup_dialog.isVisible()
+    assert w.selected_profiles() == [profile, second]
+    assert w.limits() == [Limit('clock', 20000, 200), Limit('depth', 16)]
+    new = w.prepared_match()
+    assert new['id'] != match['id']
+    assert [game['moves'] for game in new['games']] == [['e2e4'], ['e2e4']]
+    assert all(game['result'] == '*' for game in new['games'])
+    assert new['multipv_by_side'] == [1, 2]
+    assert new['clock_buffer_seconds'] == 0.45
+    assert new['sprt']['h1'] == 7 and not new['sprt']['decision']
+    assert w.tournament.state is match
+
+    monkeypatch.setattr(QMessageBox, 'information', lambda *args: None)
+    w.use_match_setup(match | {'profiles': [asdict(profile), asdict(replace(second, identity='changed'))]})
+    assert w.engines[1].currentIndex() == -1
+    w.close()

@@ -215,3 +215,62 @@ def test_adjudicated_pgn_result_matches_export(qtbot,db,profile,tmp_path,monkeyp
     assert game.headers['Result']=='1/2-1/2'
     assert path.read_text().split('1/2-1/2')[1] is not None
     w.close()
+
+
+def test_mixed_queue_keeps_shared_openings_and_runs_each_setup(qtbot, db, profile):
+    from dataclasses import asdict, replace
+    from nocturne_battle.app import Window
+
+    other = replace(profile, name='Other', id='other', options={'Threads': 1, 'Hash': 16})
+    db.put('profiles', [asdict(profile), asdict(other)])
+    w = Window(db)
+    qtbot.addWidget(w)
+    w.engines[1].setCurrentIndex(1)
+    w.pairs.setValue(1)
+    w.clock_bases[0].setValue(20 / 60)
+    w.clock_increments[0].setValue(.2)
+    w.mode_b.setCurrentText('nodes')
+    w.play_pv.setValue(1)
+    w.play_pv_b.setValue(1)
+    w.scaling.queue_button.click()
+    first = w.experiment.state['conditions'][0]
+    first['max_plies'] = 2
+
+    # These edits affect other matches, but the queue keeps the initial rules and schedule.
+    w.pairs.setValue(4)
+    w.seed.setValue(123)
+    w.clock_buffer.setValue(1.5)
+    w.mode_b.setCurrentText('depth')
+    w.play_pv_b.setValue(2)
+    w.scaling.queue_button.click()
+    first, second = w.experiment.state['conditions']
+    assert second['games'] == first['games'] and second['games'] is not first['games']
+    assert second['clock_buffer_seconds'] == first['clock_buffer_seconds']
+    assert second['multipv_by_side'] == [1, 2]
+    assert second['limits'][1]['mode'] == 'depth'
+    assert w.scaling.table.rowCount() == 2
+
+    # Reload a persisted queue before running the two conditions.
+    from nocturne_battle.model import Database
+    path = db.path
+    w.close()
+    w = Window(Database(path))
+    qtbot.addWidget(w)
+    runner = w.experiment
+    runner.resume()
+    try:
+        qtbot.waitUntil(lambda: not runner.active, timeout=15000)
+        assert runner.state['index'] == 2
+        for condition in runner.state['conditions']:
+            assert condition['index'] == 2
+            for game in condition['games']:
+                assert len(game['moves']) == 2
+                timed_ply, fixed_ply = ('1', '2') if game['a_white'] else ('2', '1')
+                clock_run = w.db.search_run(game['move_searches'][timed_ply]['search_run_id'])
+                fixed_run = w.db.search_run(game['move_searches'][fixed_ply]['search_run_id'])
+                assert clock_run['clock_go']
+                assert fixed_run['limit'] == condition['limits'][1]
+                assert fixed_run['multipv'] == condition['multipv_by_side'][1]
+    finally:
+        runner.pause()
+        w.close()
