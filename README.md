@@ -338,6 +338,14 @@ EvalFile/EvalFileSmall/WeightsFile are hashed and checked for changes. Default
 external networks selected internally by engines are not discoverable through
 standard UCI; set those options explicitly for reproducible cache identity.
 
+For time odds, use **clock** on both sides. For example, select Stockfish 18 as
+Engine A and Stockfish 19 as Engine B. Apply **20 sec + 0.2 sec** to both, then
+choose **Engine A gets 2× B’s starting time** under **Starting time odds**.
+A starts at 40 seconds and B starts at 20 seconds. Both keep the 0.2-second
+increment. Enter custom times directly in the two clock rows. Both profiles
+can be stable or development builds, and each clock follows its engine when
+colors swap.
+
 ## Repeat and queue comparisons
 
 In **Match library**, select a match and click **Use this setup**. Match Setup

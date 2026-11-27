@@ -39,7 +39,7 @@ jobs:
           Get-FileHash dist/ChessEngineBattle/ChessEngineBattle.exe -Algorithm SHA256 | Format-List | Out-File -Append dist/ChessEngineBattle/BUILD-INFO.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: ChessEngineBattle-0.5.29-Windows
+          name: ChessEngineBattle-0.5.30-Windows
           path: dist/ChessEngineBattle/
   publish:
     name: Publish validated Windows ZIP

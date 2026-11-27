@@ -1,3 +1,7 @@
+# 0.5.30
+
+- Set starting time odds for either engine in Match Setup. Choose 1.5×, 2×, 3×, or 4× the other engine’s starting time while keeping each side’s increment.
+
 # 0.5.29
 
 - Give Chess Engine Battle a distinct two-rook icon on the Windows executable, taskbar, and window. Show the emblem beside the app title.

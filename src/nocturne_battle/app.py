@@ -58,7 +58,7 @@ class Window(QMainWindow):
         self.saved_opening_inputs = None
         self._closed = False
         db.recover()
-        self.setWindowTitle('Chess Engine Battle 0.5.29 · Engine Match & Analysis Studio')
+        self.setWindowTitle('Chess Engine Battle 0.5.30 · Engine Match & Analysis Studio')
         self.resize(1800, 1000)
         self.profiles = [Profile(**p) for p in db.get('profiles', [])]
         self.tournament = Tournament(db, self)
@@ -88,7 +88,7 @@ class Window(QMainWindow):
         brand.addWidget(emblem)
         brand.addWidget(title)
         brand.addStretch()
-        brand.addWidget(QLabel('0.5.29'))
+        brand.addWidget(QLabel('0.5.30'))
         outer.addLayout(brand)
         outer.setContentsMargins(18,14,18,12);outer.setSpacing(12)
         quick = QHBoxLayout();brand.addLayout(quick)
@@ -480,6 +480,17 @@ class Window(QMainWindow):
         self.clock_preset.setToolTip('Set base time and increment on each engine that uses clock mode.')
         self.clock_preset.activated.connect(self.apply_clock_preset)
         form.addRow('Clock preset', self.clock_preset)
+        self.clock_odds = QComboBox()
+        self.clock_odds.addItem('Give one engine more starting time…', None)
+        for side in (0, 1):
+            for factor in (1.5, 2, 3, 4):
+                self.clock_odds.addItem(f'Engine {"AB"[side]} gets {factor:g}× {"BA"[side]}’s starting time',
+                                        (side, factor))
+        self.clock_odds.setToolTip(
+            'Copy the other engine’s starting time at the selected ratio. Each engine keeps its increment per move.'
+        )
+        self.clock_odds.activated.connect(self.apply_clock_odds)
+        form.addRow('Starting time odds', self.clock_odds)
         self.clock_buffer = QDoubleSpinBox()
         self.clock_buffer.setRange(0, 10)
         self.clock_buffer.setDecimals(2)
@@ -1125,9 +1136,23 @@ class Window(QMainWindow):
                 self.clock_increments[side].setValue(preset[1])
         self.clock_preset.setCurrentIndex(0)
 
+    def apply_clock_odds(self, index):
+        odds = self.clock_odds.itemData(index)
+        self.clock_odds.setCurrentIndex(0)
+        if odds is None or self.search_modes() != ('clock', 'clock'):
+            return
+        side, factor = odds
+        reference_ms = round(self.clock_bases[1 - side].value() * 60000)
+        base_ms = round(reference_ms * factor)
+        if not 1 <= base_ms <= 2**31 - 1:
+            self.error('Choose a positive starting time that fits the clock limit after applying these odds.')
+            return
+        self.clock_bases[side].setValue(base_ms / 60000)
+
     def search_mode_changed(self, _mode):
         modes = self.search_modes()
         self.limit_form.setRowVisible(self.clock_preset, 'clock' in modes)
+        self.limit_form.setRowVisible(self.clock_odds, modes == ('clock', 'clock'))
         for side, (field, mode) in enumerate(zip(self.budgets, modes)):
             timed = mode == 'clock'
             previous = self.budget_modes[side]

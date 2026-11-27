@@ -210,3 +210,31 @@ def test_mixed_match_setup_preset_and_mode_specific_budgets(qtbot, db, profile):
             restored.limits()
     finally:
         restored.close()
+
+
+def test_starting_time_odds_follow_engine_after_color_swap(qtbot, db, profile):
+    from dataclasses import asdict
+
+    other = replace(profile, name='Development build', id='development')
+    db.put('profiles', [asdict(profile), asdict(other)])
+    w = Window(db)
+    qtbot.addWidget(w)
+    w.engines[1].setCurrentIndex(1)
+    try:
+        w.pairs.setValue(1)
+        w.clock_preset.activated.emit(w.clock_preset.findText('20 sec + 0.2 sec'))
+        odds = w.clock_odds.findText('Engine A gets 2× B’s starting time')
+        assert odds >= 0
+        w.clock_odds.activated.emit(odds)
+        w.clock_odds.activated.emit(odds)
+        assert w.limits() == [Limit('clock', 40000, 200), Limit('clock', 20000, 200)]
+        state = w.prepared_match()
+        state['max_plies'] = 2
+        w.tournament.load_new(state)
+        w.tournament.resume()
+        qtbot.waitUntil(lambda: w.tournament.state['index'] == 2, timeout=15000)
+        commands = [line for line in w.tournament.search.engine.connection.log if line.startswith('> go ')]
+        assert commands[0] == '> go wtime 40000 btime 20000 winc 200 binc 200'
+        assert commands[2] == '> go wtime 20000 btime 40000 winc 200 binc 200'
+    finally:
+        w.close()
